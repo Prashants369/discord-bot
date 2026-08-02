@@ -55,14 +55,21 @@ VERIFY_AS_CHOICES = [
 ]
 
 
-def is_verified(member: discord.Member) -> bool:
-    return bool({r.name for r in member.roles} & VERIFIED_ACCESS_ROLES)
+def is_verified(member: discord.Member | discord.User | None) -> bool:
+    if not member:
+        return False
+    roles = getattr(member, "roles", []) or []
+    return bool({r.name for r in roles} & VERIFIED_ACCESS_ROLES)
 
 
-def is_staff(member: discord.Member) -> bool:
-    if member.guild_permissions.administrator:
+def is_staff(member: discord.Member | discord.User | None) -> bool:
+    if not member:
+        return False
+    perms = getattr(member, "guild_permissions", None)
+    if perms and perms.administrator:
         return True
-    names = {r.name for r in member.roles}
+    roles = getattr(member, "roles", []) or []
+    names = {r.name for r in roles}
     return bool(names & {"Moderator", "Owner"})
 
 
@@ -556,8 +563,7 @@ class TicketActionView(ui.View):
 
         if ticket_chan:
             await archive_ticket_snapshot(interaction.guild, ticket_chan, f"APPROVED → {role_name}", mod)
-            await ticket_chan.send(f"✅ Verified {target.mention} as **{role_name}**. Closing in 5s…")
-            await close_ticket_later(ticket_chan, 5, f"Verified as {role_name}")
+            await ticket_chan.send(f"✅ Verified {target.mention} as **{role_name}**. Ticket remains open.")
 
         await interaction.followup.send(f"✅ Verified {target.display_name} as **{role_name}**.", ephemeral=True)
 
@@ -1082,21 +1088,43 @@ class TicketButtonView(ui.View):
         style=discord.ButtonStyle.success,
         custom_id="heaven_opt_female",
     )
+    async def _handle_open_ticket(self, interaction: discord.Interaction, applicant_type: str, modal_factory):
+        try:
+            guild = interaction.guild
+            member = interaction.user
+            if guild and not isinstance(member, discord.Member):
+                member = guild.get_member(member.id) or await resolve_member(guild, member.id) or interaction.user
+
+            if is_verified(member):
+                await interaction.response.send_message("✅ You are already verified!", ephemeral=True)
+                return
+            if store.is_banned_record(member.id):
+                await interaction.response.send_message("🚫 Ban record on file. Contact staff.", ephemeral=True)
+                return
+            if store.has_open_application(member.id):
+                app = store.get_app(member.id)
+                ch_id = app.get("ticket_channel_id") if app else None
+                mention = f"<#{ch_id}>" if ch_id else "your ticket"
+                await interaction.response.send_message(f"📩 You already have an open application: {mention}", ephemeral=True)
+                return
+            await interaction.response.send_modal(modal_factory())
+        except Exception as e:
+            print(f"[ERROR] Ticket open failed for {interaction.user}: {e}", flush=True)
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(f"❌ Could not open form: {e}", ephemeral=True)
+                else:
+                    await interaction.followup.send(f"❌ Could not open form: {e}", ephemeral=True)
+            except Exception:
+                pass
+
+    @ui.button(
+        label="👩 Female Verification",
+        style=discord.ButtonStyle.success,
+        custom_id="heaven_opt_female",
+    )
     async def open_female_ticket(self, interaction: discord.Interaction, button: ui.Button):
-        member = interaction.user
-        if is_verified(member):
-            await interaction.response.send_message("✅ Already verified!", ephemeral=True)
-            return
-        if store.is_banned_record(member.id):
-            await interaction.response.send_message("🚫 Ban record on file. Contact staff.", ephemeral=True)
-            return
-        if store.has_open_application(member.id):
-            app = store.get_app(member.id)
-            ch_id = app.get("ticket_channel_id") if app else None
-            mention = f"<#{ch_id}>" if ch_id else "your ticket"
-            await interaction.response.send_message(f"📩 You already have an open application: {mention}", ephemeral=True)
-            return
-        await interaction.response.send_modal(IndividualVerificationModal("Female"))
+        await self._handle_open_ticket(interaction, "Female", lambda: IndividualVerificationModal("Female"))
 
     @ui.button(
         label="👨 Male Verification",
@@ -1104,20 +1132,7 @@ class TicketButtonView(ui.View):
         custom_id="heaven_opt_male",
     )
     async def open_male_ticket(self, interaction: discord.Interaction, button: ui.Button):
-        member = interaction.user
-        if is_verified(member):
-            await interaction.response.send_message("✅ Already verified!", ephemeral=True)
-            return
-        if store.is_banned_record(member.id):
-            await interaction.response.send_message("🚫 Ban record on file. Contact staff.", ephemeral=True)
-            return
-        if store.has_open_application(member.id):
-            app = store.get_app(member.id)
-            ch_id = app.get("ticket_channel_id") if app else None
-            mention = f"<#{ch_id}>" if ch_id else "your ticket"
-            await interaction.response.send_message(f"📩 You already have an open application: {mention}", ephemeral=True)
-            return
-        await interaction.response.send_modal(IndividualVerificationModal("Male"))
+        await self._handle_open_ticket(interaction, "Male", lambda: IndividualVerificationModal("Male"))
 
     @ui.button(
         label="👩‍❤️‍👨 Couple Verification",
@@ -1125,20 +1140,7 @@ class TicketButtonView(ui.View):
         custom_id="heaven_opt_couple",
     )
     async def open_couple_ticket(self, interaction: discord.Interaction, button: ui.Button):
-        member = interaction.user
-        if is_verified(member):
-            await interaction.response.send_message("✅ Already verified!", ephemeral=True)
-            return
-        if store.is_banned_record(member.id):
-            await interaction.response.send_message("🚫 Ban record on file. Contact staff.", ephemeral=True)
-            return
-        if store.has_open_application(member.id):
-            app = store.get_app(member.id)
-            ch_id = app.get("ticket_channel_id") if app else None
-            mention = f"<#{ch_id}>" if ch_id else "your ticket"
-            await interaction.response.send_message(f"📩 You already have an open application: {mention}", ephemeral=True)
-            return
-        await interaction.response.send_modal(CoupleVerificationModal())
+        await self._handle_open_ticket(interaction, "Couple", lambda: CoupleVerificationModal())
 
 
 # ═════════════════════════════════════════════════════════
@@ -1460,13 +1462,13 @@ async def cmd_verify(
         interaction.guild, member, as_role.value, interaction.user
     )
     if ok:
-        # Close open ticket channel if any
+        # Keep ticket channel open if any
         tch = discord.utils.get(interaction.guild.text_channels, name=ticket_channel_name(member.id))
         if tch:
             await archive_ticket_snapshot(
                 interaction.guild, tch, f"APPROVED via /verify → {as_role.value}", interaction.user
             )
-            await close_ticket_later(tch, 3, f"/verify {as_role.value}")
+            await tch.send(f"✅ Verified {member.mention} as **{as_role.value}**. Ticket remains open.")
         await interaction.followup.send(
             f"✅ {member.mention} verified as **{as_role.value}**.", ephemeral=True
         )

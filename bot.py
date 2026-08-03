@@ -1,8 +1,14 @@
+# ═════════════════════════════════════════════════════════
+# 🌿 Ivy — HEAVEN Garden Assistant (v2.5)
+# ═════════════════════════════════════════════════════════
+# SECTION 1: IMPORTS, ENV CONFIGURATION & ROLE CONSTANTS
+# ═════════════════════════════════════════════════════════
 import os
 import sys
 import re
 import asyncio
 import datetime
+import random
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands, ui
@@ -12,14 +18,6 @@ import store
 
 sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
 sys.stderr.reconfigure(encoding='utf-8', line_buffering=True)
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# HEAVEN — Verification + Roles Bot (Phase 1)
-#   • JSON application store (survives restarts)
-#   • Live mod queue in #verification-queue
-#   • Staff slash: /verify /unverify /trust /untrust /vstatus /queue
-#   • Age gate, verified-only role menus, restart-safe buttons
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 load_dotenv()
 store.ensure_store()
@@ -59,6 +57,9 @@ VERIFY_AS_CHOICES = [
 ]
 
 
+# ═════════════════════════════════════════════════════════
+# SECTION 2: CORE HELPER FUNCTIONS & VERIFICATION LOGIC
+# ═════════════════════════════════════════════════════════
 def is_verified(member: discord.Member | discord.User | None) -> bool:
     if not member:
         return False
@@ -615,7 +616,7 @@ async def set_trusted(guild, member, mod_user, give: bool):
 
 
 # ═════════════════════════════════════════════════════════
-#  TICKET MOD BUTTONS
+# SECTION 3: INTERACTIVE UI VIEWS & MODALS (Buttons, Dropdowns, Cards)
 # ═════════════════════════════════════════════════════════
 class TicketActionView(ui.View):
     def __init__(self):
@@ -1615,7 +1616,7 @@ class IntroTemplateView(ui.View):
 
 
 # ═════════════════════════════════════════════════════════
-#  BOT + SLASH COMMANDS
+# SECTION 4: BOT CLASS & CORE DISCORD EVENT LISTENERS
 # ═════════════════════════════════════════════════════════
 class IvyBot(commands.Bot):
     def __init__(self):
@@ -2218,7 +2219,7 @@ async def cmd_batchshoutout(interaction: discord.Interaction):
 
 
 # ═════════════════════════════════════════════════════════
-#  PAGINATED COMMANDS DISCOVERY VIEW
+# SECTION 5: MEMBER SLASH COMMANDS & DISCOVERY (Directory, Social & Games)
 # ═════════════════════════════════════════════════════════
 class CommandsView(ui.View):
     def __init__(self, interaction: discord.Interaction):
@@ -3096,6 +3097,9 @@ async def cmd_vibecheck(interaction: discord.Interaction):
     await interaction.followup.send(embed=embed)
 
 
+# ═════════════════════════════════════════════════════════
+# SECTION 6: STAFF & MODERATION SLASH COMMANDS (Private Tools)
+# ═════════════════════════════════════════════════════════
 @bot.tree.command(name="warn", description="Staff: Issue a formal warning to a member")
 @app_commands.describe(member="Member to warn", reason="Reason for warning")
 @app_commands.default_permissions(manage_guild=True)
@@ -3400,6 +3404,9 @@ async def post_or_refresh_panel(channel: discord.TextChannel, marker: str, embed
     await channel.send(embed=embed, view=view)
 
 
+# ═════════════════════════════════════════════════════════
+# SECTION 7: AUTOMATED BACKGROUND LOOPS & SCHEDULED TASKS
+# ═════════════════════════════════════════════════════════
 @tasks.loop(minutes=30)
 async def queue_refresh_loop():
     guild = bot.get_guild(GUILD_ID)

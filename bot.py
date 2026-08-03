@@ -3532,7 +3532,26 @@ async def on_member_join(member: discord.Member):
     except (discord.Forbidden, discord.HTTPException):
         pass
 
-    # 2) Human-feeling hello in arrivals (hosts should also reply in person)
+    # 2) Server-wide arrival alert in announcements
+    ann_chan = discord.utils.get(guild.text_channels, name="announcements")
+    if ann_chan:
+        try:
+            ann_embed = discord.Embed(
+                title="🌱 New Guest Arrived at the Garden Gate!",
+                description=(
+                    f"✨ {member.mention} has just joined the HAVEN garden!\n\n"
+                    "Everyone welcome them, say hello, or drop a 👋 wave to make them feel right at home!"
+                ),
+                color=discord.Color.from_rgb(46, 204, 113),
+                timestamp=datetime.datetime.now(datetime.timezone.utc),
+            )
+            ann_embed.set_thumbnail(url=member.display_avatar.url)
+            ann_embed.set_footer(text="Ivy 🌿 · HAVEN Garden Arrival")
+            await ann_chan.send(content=f"🔔 New Guest: {member.mention}", embed=ann_embed, view=WelcomeInteractionView(member.id))
+        except discord.HTTPException as e:
+            print(f"[WARN] Announcement join alert failed: {e}", flush=True)
+
+    # 3) Human-feeling hello in arrivals (hosts should also reply in person)
     arrivals_chan = discord.utils.get(guild.text_channels, name="arrivals-chat")
     if arrivals_chan:
         embed = discord.Embed(
@@ -3557,6 +3576,7 @@ async def on_member_join(member: discord.Member):
             await arrivals_chan.send(
                 content=content,
                 embed=embed,
+                view=WelcomeInteractionView(member.id),
                 allowed_mentions=discord.AllowedMentions(users=True, roles=True),
             )
         except discord.HTTPException as e:

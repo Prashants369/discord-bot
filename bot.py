@@ -1564,7 +1564,7 @@ class IntroTemplateView(ui.View):
 # ═════════════════════════════════════════════════════════
 #  BOT + SLASH COMMANDS
 # ═════════════════════════════════════════════════════════
-class HeavenBot(commands.Bot):
+class IvyBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
         intents.guilds = True
@@ -1591,7 +1591,9 @@ class HeavenBot(commands.Bot):
         print(f"[BOT] Slash commands synced: {len(g_cmds)} guild, {len(glob_cmds)} global.", flush=True)
 
 
-bot = HeavenBot()
+Ivy = IvyBot
+HeavenBot = IvyBot
+bot = IvyBot()
 
 
 def staff_check():
@@ -3360,13 +3362,13 @@ async def on_ready():
             try:
                 await mod_chat.send(
                     embed=discord.Embed(
-                        title="🟢 HEAVEN bot online",
+                        title="🌿 Ivy is Online",
                         description=(
                             f"Store: `data/verifications.json`\n"
                             f"Open applications: **{store.count_open()}**\n"
                             f"Staff commands: `/verify` `/unverify` `/trust` `/untrust` `/vstatus` `/queue`"
                         ),
-                        color=discord.Color.green(),
+                        color=discord.Color.from_rgb(46, 204, 113),
                         timestamp=datetime.datetime.now(datetime.timezone.utc),
                     )
                 )

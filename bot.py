@@ -3535,6 +3535,23 @@ async def on_ready():
     print(f"[BOT] Connected to: {guild.name}", flush=True)
     store.ensure_store()
 
+    # Ensure server default notification setting is set to ALL MESSAGES
+    if guild.default_notifications != discord.NotificationLevel.all_messages:
+        try:
+            await guild.edit(default_notifications=discord.NotificationLevel.all_messages, reason="Enable default All Messages notifications for server")
+            print("[BOT] ✅ Server default notifications set to ALL MESSAGES", flush=True)
+        except Exception as e:
+            print(f"[WARN] Failed to set default_notifications: {e}", flush=True)
+
+    # Make Verified role mentionable for community chats
+    verified_role = discord.utils.get(guild.roles, name="Verified")
+    if verified_role and not verified_role.mentionable:
+        try:
+            await verified_role.edit(mentionable=True, reason="Allow members to tag Verified tribe")
+            print("[BOT] ✅ Made Verified role mentionable", flush=True)
+        except Exception as e:
+            print(f"[WARN] Failed to edit Verified role mentionable: {e}", flush=True)
+
     # Ensure @everyone role has use_application_commands enabled
     everyone = guild.default_role
     if everyone and not everyone.permissions.use_application_commands:

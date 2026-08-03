@@ -60,10 +60,10 @@ async def on_ready():
         description=(
             "Welcome to the HAVEN Bot Directory! Our bot is designed to keep our garden safe, "
             "fun, and interactive for everyone without forcing activity or spam.\n\n"
-            "💡 **How to use slash commands:**\n"
-            "1️⃣ Type `/` in any channel to open Discord's command picker.\n"
-            "2️⃣ Select **HEAVEN Bot** to see all available commands.\n"
-            "3️⃣ Type `/commands` anytime to open an interactive 5-page directory!\n\n"
+            "💡 **How to use commands:**\n"
+            "Just type `/` followed by any command name in chat (for example `/profile`, `/checkin`, `/hug`) "
+            "and press Enter!\n\n"
+            "Type `/commands` anytime in chat to open an interactive 5-page directory!\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         ),
         color=discord.Color.from_rgb(39, 174, 96)

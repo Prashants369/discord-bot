@@ -2150,6 +2150,63 @@ async def cmd_spotlight(interaction: discord.Interaction, member: discord.Member
         await interaction.followup.send("❌ Channel `#announcements` not found.", ephemeral=True)
 
 
+@bot.tree.command(name="welcomeshoutout", description="Send an interactive welcome shoutout card for a member")
+@app_commands.describe(member="Verified member to shoutout")
+async def cmd_welcomeshoutout(interaction: discord.Interaction, member: discord.Member):
+    await interaction.response.defer()
+    if not is_verified(member):
+        await interaction.followup.send(f"❌ {member.mention} is not verified yet.", ephemeral=True)
+        return
+    
+    app = store.get_app(member.id) or {}
+    v_role = app.get("verified_as") or "Verified"
+    
+    embed = discord.Embed(
+        title="🎉 Garden Member Shoutout!",
+        description=(
+            f"✨ Everyone give a huge warm welcome to {member.mention} — verified as **{v_role}**! 🌿\n\n"
+            "Glad to have you in our community tribe! Break the ice and say hello below.\n\n"
+            "**Click a button below to greet them!**"
+        ),
+        color=discord.Color.from_rgb(46, 204, 113),
+        timestamp=datetime.datetime.now(datetime.timezone.utc)
+    )
+    embed.set_thumbnail(url=member.display_avatar.url)
+    embed.set_footer(text="Ivy 🌿 · HAVEN Garden Tribe")
+    await interaction.followup.send(content=f"🎉 Shoutout to {member.mention}!", embed=embed, view=WelcomeInteractionView(member.id))
+
+
+@bot.tree.command(name="batchshoutout", description="Staff: Give a community shoutout to all verified members")
+@app_commands.default_permissions(manage_guild=True)
+@staff_check()
+async def cmd_batchshoutout(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    guild = interaction.guild
+    
+    verified_members = [m for m in guild.members if not m.bot and is_verified(m)]
+    if not verified_members:
+        await interaction.followup.send("❌ No verified members found.", ephemeral=True)
+        return
+    
+    ann_chan = discord.utils.get(guild.text_channels, name="announcements") or interaction.channel
+    
+    mentions = [m.mention for m in verified_members[:20]]
+    embed = discord.Embed(
+        title="🌸 Verified Tribe Celebration Shoutout! 🌸",
+        description=(
+            f"🎉 Celebrating our **{len(verified_members)} verified garden members**!\n\n"
+            "Thank you for making HAVEN a safe, warm, and vibrant community tribe:\n\n"
+            + "\n".join([f"• {m.mention}" for m in verified_members[:20]]) +
+            "\n\nSay hi to each other, drop a `/hug` or `/wave`, and check out `/commands`!"
+        ),
+        color=discord.Color.from_rgb(155, 89, 182),
+        timestamp=datetime.datetime.now(datetime.timezone.utc)
+    )
+    embed.set_footer(text="Ivy 🌿 · Community Tribe Shoutout")
+    await ann_chan.send(embed=embed)
+    await interaction.followup.send(f"✅ Posted community shoutout for {len(verified_members)} verified members in {ann_chan.mention}!", ephemeral=True)
+
+
 # ═════════════════════════════════════════════════════════
 #  PAGINATED COMMANDS DISCOVERY VIEW
 # ═════════════════════════════════════════════════════════

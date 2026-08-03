@@ -481,7 +481,12 @@ async def garden_arrival_ritual(guild: discord.Guild, member: discord.Member, ve
             )
             ann_embed.set_thumbnail(url=member.display_avatar.url)
             ann_embed.set_footer(text="Ivy 🌿 · HAVEN Garden Tribe")
-            await ann_chan.send(content=f"🎉 Welcome {member.mention}!", embed=ann_embed, view=WelcomeInteractionView(member.id))
+            await ann_chan.send(
+                content=f"📢 @here 🎉 Welcome {member.mention}!",
+                embed=ann_embed,
+                view=WelcomeInteractionView(member.id),
+                allowed_mentions=discord.AllowedMentions(everyone=True, users=True)
+            )
         except discord.HTTPException as e:
             print(f"[WARN] Announcement shoutout failed: {e}", flush=True)
 
@@ -502,7 +507,12 @@ async def garden_arrival_ritual(guild: discord.Guild, member: discord.Member, ve
             )
             wave.set_thumbnail(url=member.display_avatar.url)
             wave.set_footer(text="HAVEN · wave hello · no pressure")
-            await general.send(content=member.mention, embed=wave, view=WelcomeInteractionView(member.id))
+            await general.send(
+                content=f"👋 @here {member.mention}",
+                embed=wave,
+                view=WelcomeInteractionView(member.id),
+                allowed_mentions=discord.AllowedMentions(everyone=True, users=True)
+            )
         except discord.HTTPException as e:
             print(f"[WARN] garden public wave failed: {e}", flush=True)
 
@@ -3748,7 +3758,12 @@ async def on_member_join(member: discord.Member):
             )
             ann_embed.set_thumbnail(url=member.display_avatar.url)
             ann_embed.set_footer(text="Ivy 🌿 · HAVEN Garden Arrival")
-            await ann_chan.send(content=f"🔔 New Guest: {member.mention}", embed=ann_embed, view=WelcomeInteractionView(member.id))
+            await ann_chan.send(
+                content=f"🔔 @here New Guest: {member.mention}",
+                embed=ann_embed,
+                view=WelcomeInteractionView(member.id),
+                allowed_mentions=discord.AllowedMentions(everyone=True, users=True)
+            )
         except discord.HTTPException as e:
             print(f"[WARN] Announcement join alert failed: {e}", flush=True)
 

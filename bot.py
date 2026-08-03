@@ -2328,8 +2328,9 @@ class BirthdayGroup(app_commands.Group, name="birthday"):
 
 @bot.tree.command(name="commands", description="Open the HAVEN command directory")
 async def cmd_commands(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
     view = CommandsView(interaction)
-    await interaction.response.send_message(embed=view.get_embed(), view=view, ephemeral=True)
+    await interaction.followup.send(embed=view.get_embed(), view=view, ephemeral=True)
 
 
 @bot.tree.command(name="profile", description="See your garden profile card 🌿")

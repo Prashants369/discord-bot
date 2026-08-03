@@ -2356,27 +2356,27 @@ class WouldYouRatherView(ui.View):
 
 
 TRUTHS_LIST = [
-    "What's the most embarrassing song on your playlist?",
-    "When was the last time you cried and why?",
-    "What is your biggest guilty pleasure?",
-    "If you could trade lives with anyone in this server for one day, who would it be?",
-    "What's the funniest misunderstanding you've ever experienced?",
-    "What is something you've never told anyone online?",
-    "What is your idea of a perfect cozy evening?",
-    "What is your favorite quality about yourself?",
-    "What's a fashion trend you secretly love or hate?",
-    "What is your dream vacation destination?",
+    "What is your biggest turn-on that most people don't know about?",
+    "What's the wildest or most adventurous place you've ever had a romantic encounter?",
+    "Have you ever had a crush or secret vibe with someone in an online community?",
+    "What is your favorite outfit or attire that makes you feel most confident and attractive?",
+    "What is a secret fantasy or desire you've always wanted to try with the right partner?",
+    "What is the most memorable date or romantic night of your adult life?",
+    "What is your idea of the ultimate sensual or spicy evening?",
+    "What attracted you most to joining an open-minded 18+ lifestyle community like HAVEN?",
+    "What is a red flag and a major green flag for you in adult relationships or dating?",
+    "What's the best compliment someone has ever given you about your adult allure or energy?",
 ]
 
 DARES_LIST = [
-    "Change your server nickname to something funny chosen by the next person who speaks!",
-    "Post a selfie or photo of your current view in chat!",
-    "Send a voice note singing 5 seconds of your favorite song!",
-    "Give a compliment to 3 different members in chat!",
-    "Use only emojis in your next 3 messages!",
-    "Share the last photo in your phone camera roll (SFW)!",
-    "Tell a joke in chat — if nobody laughs, you owe another dare!",
-    "Write a short 2-line poem about the garden!",
+    "Send a spicy or flirty compliment to someone in chat or DMs!",
+    "Post an aesthetic or confident photo (SFW/Tease) in the media channels!",
+    "Share a 1-sentence flirty pick-up line or playful whisper in chat!",
+    "Describe your ideal romantic scenario using only emojis!",
+    "Give a 💚 reputation point (/rep) to the member whose vibe you find most intriguing!",
+    "Change your /mood to something flirty or provocative for the next hour!",
+    "Tag someone in chat and tell them what caught your attention about them!",
+    "Post a short confession in #confessions about your favorite adult fantasy!",
 ]
 
 class TruthOrDareView(ui.View):
@@ -2764,29 +2764,29 @@ async def cmd_8ball(interaction: discord.Interaction, question: str):
 
 TRIVIA_QUESTIONS = [
     {
-        "q": "What is the primary role of garden greeters in HAVEN?",
-        "options": ["To ban users", "To give human warmth & welcome guests", "To spam general chat", "To play music"],
+        "q": "In open-minded adult communities, what does 'ENM' stand for?",
+        "options": ["Ethical Non-Monogamy", "Exclusive Night Meeting", "Every Night Match", "Emotional Network Management"],
+        "correct": 0
+    },
+    {
+        "q": "What is the key foundation for exploring adult fantasies safely and respectfully?",
+        "options": ["Guessing boundaries", "Enthusiastic consent & clear communication", "Ignoring rules", "Secrecy"],
         "correct": 1
     },
     {
-        "q": "Which command lets you do a daily check-in for bonus XP?",
-        "options": ["/daily", "/checkin", "/claim", "/bonus"],
+        "q": "Which channel in HAVEN is dedicated to sharing verified photos and media?",
+        "options": ["#rules", "#selfies", "#verification-queue", "#bot-commands"],
         "correct": 1
     },
     {
-        "q": "What symbol represents our bot Ivy?",
-        "options": ["🌹", "🌿", "⭐", "💎"],
-        "correct": 1
+        "q": "What feature allows you to set your conversation boundary (e.g. Open DMs vs Ask Before DMing)?",
+        "options": ["Self-Assign Role Menus", "Nickname change", "Command prefix", "Server boost"],
+        "correct": 0
     },
     {
-        "q": "Which planet is known as the Red Planet?",
-        "options": ["Venus", "Mars", "Jupiter", "Saturn"],
-        "correct": 1
-    },
-    {
-        "q": "What is the highest layer of Earth's atmosphere?",
-        "options": ["Troposphere", "Exosphere", "Stratosphere", "Mesosphere"],
-        "correct": 1
+        "q": "What command in HAVEN calculates fun chemistry and compatibility between two members?",
+        "options": ["/ship", "/love", "/vibe", "/match"],
+        "correct": 0
     }
 ]
 
@@ -2915,13 +2915,13 @@ async def cmd_poll(interaction: discord.Interaction, question: str, option1: str
 
 
 GARDEN_TOPICS = [
-    "What is one small thing that made you smile today?",
-    "If you could travel anywhere right now without worrying about cost, where would you go?",
-    "What is your absolute favorite comfort meal or drink?",
-    "What is a song that instantly boosts your mood no matter what?",
-    "Do you prefer quiet morning energy or late night cozy vibes?",
-    "What is a hobby or interest you recently got into?",
-    "What is the best piece of advice someone has ever given you?",
+    "What is your ultimate recipe for creating a romantic, sensual mood at home?",
+    "What is a secret passion or lifestyle interest you love sharing with an open-minded partner?",
+    "What is the most attractive quality someone can possess when you first meet them?",
+    "For couples & singles: how do you keep the spark alive and adventurous?",
+    "What is your favorite type of music or playlist to put on for a late-night vibe?",
+    "What is an open-minded lifestyle boundary or rule you value most in adult spaces?",
+    "What is your favorite outfit, perfume, or look that makes you feel irresistible?",
 ]
 
 
@@ -2982,12 +2982,12 @@ async def cmd_coinflip(interaction: discord.Interaction):
 
 
 WYR_PAIRS = [
-    ("Always know what someone is thinking", "Always know what someone is feeling"),
-    ("Have a rewind button for life", "Have a pause button for life"),
-    ("Live in a cozy cabin in the mountains", "Live in a quiet beach house by the sea"),
-    ("Be able to talk to animals", "Be able to speak every human language"),
-    ("Always be 10 minutes early", "Always be 10 minutes late"),
-    ("Never need sleep again", "Never get tired or stressed again"),
+    ("A passionate weekend getaway in a luxury suite", "A wild, spontaneous late-night adventure under the stars"),
+    ("A partner who is super flirty & bold in public", "A partner who is quiet in public but wild behind closed doors"),
+    ("Whisper a spicy secret to someone in chat", "Post a playful teaser picture in the media room"),
+    ("Deep, late-night pillow talk for hours", "An intense, electrifying connection with zero words spoken"),
+    ("Explore a brand new shared fantasy together", "Re-create your absolute favorite romantic memory"),
+    ("Be the one taking control & leading", "Be completely seduced and swept off your feet"),
 ]
 
 @bot.tree.command(name="wouldyourather", description="Play Would You Rather! 🅰️/🅱️")
@@ -3401,20 +3401,16 @@ async def queue_refresh_loop():
 
 
 GARDEN_PROMPTS_NEUTRAL = [
-    "Who's around? Drop a 🌱 just to say you're here.",
-    "The bench is open — what's on your mind today?",
-    "What's one nice thing that happened recently?",
-    "Share a song, a picture of your view, or just a vibe.",
-    "If you could teleport anywhere right now, where would you go?",
-    "What hobby or interest could you talk about for hours?",
-    "Comfort food or comfort movie — what's your pick right now?",
-    "What's the kindest interaction you've had online?",
-    "For couples: what's a shared little joy of yours?",
-    "Describe your current mood in one emoji.",
-    "What kind of company do you enjoy most — quiet chat, laughs, or deeper talks?",
-    "Drop a fun fact about yourself that nobody here knows yet.",
-    "What's something you're looking forward to this week?",
-    "What does a perfect cozy evening look like to you?",
+    "🌿 Who's around tonight? Drop a ✨ or say hi to set the mood.",
+    "What is your ultimate recipe for creating a romantic or sensual mood?",
+    "For singles & couples: what is a fun adventurous date idea you've been wanting to try?",
+    "Share a song or playlist that gives off deep, late-night cozy/flirty vibes.",
+    "What is the most attractive trait or energy someone can have in chat?",
+    "What is a secret guilty pleasure or fantasy that always makes you smile?",
+    "Describe your ideal relaxing late-night atmosphere in 3 words.",
+    "What is your favorite outfit or style that makes you feel most confident?",
+    "For couples: what's a little secret of how you two keep things adventurous?",
+    "Describe your current mood or vibe using just one provocative emoji.",
 ]
 
 @tasks.loop(hours=12)

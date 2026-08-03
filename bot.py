@@ -404,11 +404,34 @@ async def garden_channel_mentions(guild: discord.Guild) -> dict:
     return out
 
 
+class WelcomeInteractionView(ui.View):
+    def __init__(self, target_member_id: int | None = None):
+        super().__init__(timeout=None)
+        self.target_member_id = target_member_id
+
+    @ui.button(label="👋 Wave Hello", style=discord.ButtonStyle.primary, custom_id="ivy_welcome_wave")
+    async def wave_btn(self, interaction: discord.Interaction, button: ui.Button):
+        target = interaction.guild.get_member(self.target_member_id) if self.target_member_id else None
+        target_str = target.mention if target else "our new member"
+        await interaction.response.send_message(f"👋 {interaction.user.mention} waved hello to {target_str}! Welcome to the HAVEN garden! 🌿")
+
+    @ui.button(label="🤗 Warm Hug", style=discord.ButtonStyle.success, custom_id="ivy_welcome_hug")
+    async def hug_btn(self, interaction: discord.Interaction, button: ui.Button):
+        target = interaction.guild.get_member(self.target_member_id) if self.target_member_id else None
+        target_str = target.mention if target else "our new member"
+        await interaction.response.send_message(f"🤗 {interaction.user.mention} gave a warm welcome hug to {target_str}! 💚")
+
+    @ui.button(label="🥂 Cheers", style=discord.ButtonStyle.secondary, custom_id="ivy_welcome_cheers")
+    async def cheers_btn(self, interaction: discord.Interaction, button: ui.Button):
+        target = interaction.guild.get_member(self.target_member_id) if self.target_member_id else None
+        target_str = target.mention if target else "our new member"
+        await interaction.response.send_message(f"🥂 {interaction.user.mention} raised a glass to welcome {target_str}! 🥂✨")
+
+
 async def garden_arrival_ritual(guild: discord.Guild, member: discord.Member, verification_role_name: str):
     """
     Garden arrival: guest is *received*, not only unlocked.
-    1) DM (if open)  2) Public wave in #general-chat  3) Soft invite in #introductions
-    Only three next steps — no channel dump.
+    1) DM (if open)  2) Public wave in #general-chat  3) Announcement Shoutout  4) Soft invite in #introductions
     """
     ch = await garden_channel_mentions(guild)
     couple_note = ""
@@ -442,7 +465,27 @@ async def garden_arrival_ritual(guild: discord.Guild, member: discord.Member, ve
     except discord.HTTPException:
         pass
 
-    # --- 2) Public wave in general-chat (always — DMs often fail) ---
+    # --- 2) Announcement Shoutout ---
+    ann_chan = discord.utils.get(guild.text_channels, name="announcements")
+    if ann_chan:
+        try:
+            ann_embed = discord.Embed(
+                title="🎉 New Verified Member Shoutout!",
+                description=(
+                    f"✨ Everyone please welcome {member.mention} — verified as **{verification_role_name}**! 🌿\n\n"
+                    "We’re thrilled to have you in our community tribe! Take your time, say hi, and meet everyone.\n\n"
+                    "**Tap a button below to break the ice and say hello!**"
+                ),
+                color=discord.Color.from_rgb(46, 204, 113),
+                timestamp=datetime.datetime.now(datetime.timezone.utc),
+            )
+            ann_embed.set_thumbnail(url=member.display_avatar.url)
+            ann_embed.set_footer(text="Ivy 🌿 · HAVEN Garden Tribe")
+            await ann_chan.send(content=f"🎉 Welcome {member.mention}!", embed=ann_embed, view=WelcomeInteractionView(member.id))
+        except discord.HTTPException as e:
+            print(f"[WARN] Announcement shoutout failed: {e}", flush=True)
+
+    # --- 3) Public wave in general-chat (always — DMs often fail) ---
     general = discord.utils.get(guild.text_channels, name="general-chat")
     if general:
         try:
@@ -459,7 +502,7 @@ async def garden_arrival_ritual(guild: discord.Guild, member: discord.Member, ve
             )
             wave.set_thumbnail(url=member.display_avatar.url)
             wave.set_footer(text="HAVEN · wave hello · no pressure")
-            await general.send(content=member.mention, embed=wave)
+            await general.send(content=member.mention, embed=wave, view=WelcomeInteractionView(member.id))
         except discord.HTTPException as e:
             print(f"[WARN] garden public wave failed: {e}", flush=True)
 
@@ -1581,6 +1624,7 @@ class IvyBot(commands.Bot):
         self.add_view(ComfortRolesView())
         self.add_view(IntroTemplateView())
         self.add_view(WouldYouRatherView())
+        self.add_view(WelcomeInteractionView())
         self.tree.add_command(BlogGroup())
         self.tree.add_command(BirthdayGroup())
         # Sync slash commands to this guild and globally

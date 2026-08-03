@@ -1614,6 +1614,7 @@ def staff_check():
 @bot.tree.command(name="verify", description="Staff: verify a member as Female / Male / Couple")
 @app_commands.describe(member="Who to verify", as_role="Access role to grant")
 @app_commands.choices(as_role=VERIFY_AS_CHOICES)
+@app_commands.default_permissions(manage_guild=True)
 @staff_check()
 async def cmd_verify(
     interaction: discord.Interaction,
@@ -1641,6 +1642,7 @@ async def cmd_verify(
 
 @bot.tree.command(name="unverify", description="Staff: remove verification access roles")
 @app_commands.describe(member="Who to unverify", reason="Reason (logged)")
+@app_commands.default_permissions(manage_guild=True)
 @staff_check()
 async def cmd_unverify(
     interaction: discord.Interaction,
@@ -1663,6 +1665,7 @@ async def cmd_unverify(
 
 @bot.tree.command(name="trust", description="Staff: give Trusted (Elite lounge)")
 @app_commands.describe(member="Member to trust")
+@app_commands.default_permissions(manage_guild=True)
 @staff_check()
 async def cmd_trust(interaction: discord.Interaction, member: discord.Member):
     await interaction.response.defer(ephemeral=True)
@@ -1675,6 +1678,7 @@ async def cmd_trust(interaction: discord.Interaction, member: discord.Member):
 
 @bot.tree.command(name="untrust", description="Staff: remove Trusted role")
 @app_commands.describe(member="Member to untrust")
+@app_commands.default_permissions(manage_guild=True)
 @staff_check()
 async def cmd_untrust(interaction: discord.Interaction, member: discord.Member):
     await interaction.response.defer(ephemeral=True)
@@ -1687,6 +1691,7 @@ async def cmd_untrust(interaction: discord.Interaction, member: discord.Member):
 
 @bot.tree.command(name="vstatus", description="Staff: show verification store record")
 @app_commands.describe(member="Member to look up")
+@app_commands.default_permissions(manage_guild=True)
 @staff_check()
 async def cmd_vstatus(interaction: discord.Interaction, member: discord.Member):
     app = store.get_app(member.id)
@@ -1719,6 +1724,7 @@ async def cmd_vstatus(interaction: discord.Interaction, member: discord.Member):
 
 
 @bot.tree.command(name="vpanel", description="Staff: post or refresh verification action buttons in current ticket channel")
+@app_commands.default_permissions(manage_guild=True)
 @staff_check()
 async def cmd_vpanel(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
@@ -2066,6 +2072,7 @@ async def cmd_tour(interaction: discord.Interaction):
 
 @bot.tree.command(name="spotlight", description="Staff: Feature an active member in announcements")
 @app_commands.describe(member="Member to spotlight", bio="Feature bio or short description")
+@app_commands.default_permissions(manage_guild=True)
 @staff_check()
 async def cmd_spotlight(interaction: discord.Interaction, member: discord.Member, bio: str):
     await interaction.response.defer(ephemeral=True)
@@ -2164,8 +2171,11 @@ class CommandsView(ui.View):
                     "• `/blog title <text>` — Update your blog title"
                 ),
                 discord.Color.from_rgb(230, 126, 34)
-            ),
-            (
+            )
+        ]
+
+        if is_staff(interaction.user):
+            self.pages.append((
                 "🛡️ Page 5: Staff & Moderation Commands",
                 (
                     "Moderator and staff tools:\n\n"
@@ -2181,8 +2191,7 @@ class CommandsView(ui.View):
                     "• `/warnings @member` — View member warning history"
                 ),
                 discord.Color.from_rgb(231, 76, 60)
-            )
-        ]
+            ))
 
     def get_embed(self) -> discord.Embed:
         title, desc, color = self.pages[self.current_page]
@@ -2771,6 +2780,7 @@ async def cmd_vibecheck(interaction: discord.Interaction):
 
 @bot.tree.command(name="warn", description="Staff: Issue a formal warning to a member")
 @app_commands.describe(member="Member to warn", reason="Reason for warning")
+@app_commands.default_permissions(manage_guild=True)
 @staff_check()
 async def cmd_warn(interaction: discord.Interaction, member: discord.Member, reason: str):
     await interaction.response.defer(ephemeral=True)
@@ -2804,6 +2814,7 @@ async def cmd_warn(interaction: discord.Interaction, member: discord.Member, rea
 
 @bot.tree.command(name="warnings", description="Staff: Check a member's warning history")
 @app_commands.describe(member="Member to check")
+@app_commands.default_permissions(manage_guild=True)
 @staff_check()
 async def cmd_warnings(interaction: discord.Interaction, member: discord.Member):
     app = store.get_app(member.id) or {}
@@ -3042,6 +3053,7 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
 
 
 @bot.tree.command(name="queue", description="Staff: refresh / show verification queue")
+@app_commands.default_permissions(manage_guild=True)
 @staff_check()
 async def cmd_queue(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)

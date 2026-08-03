@@ -1583,11 +1583,12 @@ class HeavenBot(commands.Bot):
         self.add_view(WouldYouRatherView())
         self.tree.add_command(BlogGroup())
         self.tree.add_command(BirthdayGroup())
-        # Sync slash commands to this guild only (fast)
+        # Sync slash commands to this guild and globally
         guild = discord.Object(id=GUILD_ID)
         self.tree.copy_global_to(guild=guild)
-        await self.tree.sync(guild=guild)
-        print("[BOT] Slash commands synced to guild.", flush=True)
+        g_cmds = await self.tree.sync(guild=guild)
+        glob_cmds = await self.tree.sync()
+        print(f"[BOT] Slash commands synced: {len(g_cmds)} guild, {len(glob_cmds)} global.", flush=True)
 
 
 bot = HeavenBot()
@@ -3476,4 +3477,5 @@ async def on_member_remove(member: discord.Member):
                 pass
 
 
-bot.run(TOKEN)
+if __name__ == "__main__":
+    bot.run(TOKEN)

@@ -3221,6 +3221,17 @@ async def on_ready():
     print(f"[BOT] Connected to: {guild.name}", flush=True)
     store.ensure_store()
 
+    # Ensure @everyone role has use_application_commands enabled
+    everyone = guild.default_role
+    if everyone and not everyone.permissions.use_application_commands:
+        try:
+            perms = everyone.permissions
+            perms.update(use_application_commands=True)
+            await everyone.edit(permissions=perms, reason="Allow all members to use slash commands")
+            print("[BOT] ✅ Enabled use_application_commands on @everyone role", flush=True)
+        except Exception as e:
+            print(f"[WARN] Failed to enable slash perms on @everyone: {e}", flush=True)
+
     # Register persistent views so buttons work across restarts
     bot.add_view(TicketButtonView())
     bot.add_view(IdentityRolesView())

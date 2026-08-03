@@ -2762,6 +2762,211 @@ async def cmd_8ball(interaction: discord.Interaction, question: str):
     await interaction.response.send_message(embed=embed)
 
 
+TRIVIA_QUESTIONS = [
+    {
+        "q": "What is the primary role of garden greeters in HAVEN?",
+        "options": ["To ban users", "To give human warmth & welcome guests", "To spam general chat", "To play music"],
+        "correct": 1
+    },
+    {
+        "q": "Which command lets you do a daily check-in for bonus XP?",
+        "options": ["/daily", "/checkin", "/claim", "/bonus"],
+        "correct": 1
+    },
+    {
+        "q": "What symbol represents our bot Ivy?",
+        "options": ["🌹", "🌿", "⭐", "💎"],
+        "correct": 1
+    },
+    {
+        "q": "Which planet is known as the Red Planet?",
+        "options": ["Venus", "Mars", "Jupiter", "Saturn"],
+        "correct": 1
+    },
+    {
+        "q": "What is the highest layer of Earth's atmosphere?",
+        "options": ["Troposphere", "Exosphere", "Stratosphere", "Mesosphere"],
+        "correct": 1
+    }
+]
+
+
+class TriviaView(ui.View):
+    def __init__(self, question_data: dict):
+        super().__init__(timeout=60)
+        self.question_data = question_data
+        self.answered = set()
+
+        for idx, option in enumerate(question_data["options"]):
+            btn = ui.Button(label=f"{chr(65+idx)}: {option[:70]}", style=discord.ButtonStyle.secondary, custom_id=f"ivy_trivia_opt_{idx}_{random.randint(100,999)}")
+            btn.callback = self.make_callback(idx)
+            self.add_item(btn)
+
+    def make_callback(self, chosen_idx: int):
+        async def callback(interaction: discord.Interaction):
+            if interaction.user.id in self.answered:
+                await interaction.response.send_message("❌ You already answered this question!", ephemeral=True)
+                return
+            self.answered.add(interaction.user.id)
+            
+            if chosen_idx == self.question_data["correct"]:
+                new_xp = store.increment_field(interaction.user.id, "xp", 25)
+                await interaction.response.send_message(f"🎉 **Correct answer!** You earned **+25 XP**! 🌿 (Total XP: `{new_xp}`)")
+            else:
+                correct_letter = chr(65 + self.question_data["correct"])
+                correct_text = self.question_data["options"][self.question_data["correct"]]
+                await interaction.response.send_message(f"❌ **Not quite!** The correct answer was **{correct_letter}: {correct_text}**.")
+        return callback
+
+
+@bot.tree.command(name="trivia", description="Play interactive Garden Trivia and earn bonus XP! 🧠🌿")
+async def cmd_trivia(interaction: discord.Interaction):
+    q_data = random.choice(TRIVIA_QUESTIONS)
+    embed = discord.Embed(
+        title="🧠 Garden Trivia Challenge!",
+        description=f"**Question:**\n{q_data['q']}\n\n*Choose your answer below within 60s!*",
+        color=discord.Color.from_rgb(155, 89, 182),
+    )
+    view = TriviaView(q_data)
+    await interaction.response.send_message(embed=embed, view=view)
+
+
+@bot.tree.command(name="leaderboard", description="View top active garden members & XP rankings 🏆")
+async def cmd_leaderboard(interaction: discord.Interaction):
+    await interaction.response.defer()
+    guild = interaction.guild
+    data = store._read().get("applications", {})
+    
+    xp_list = []
+    for uid_str, app in data.items():
+        xp = app.get("xp", 0)
+        if xp > 0 and uid_str.isdigit():
+            xp_list.append((int(uid_str), xp))
+            
+    xp_list.sort(key=lambda x: x[1], reverse=True)
+    
+    if not xp_list:
+        await interaction.followup.send("🌿 No XP recorded yet. Start chatting or check in with `/checkin`!")
+        return
+        
+    lines = []
+    badges = ["🥇", "🥈", "🥉"]
+    
+    for idx, (uid, xp) in enumerate(xp_list[:10]):
+        member = guild.get_member(uid)
+        name = member.display_name if member else f"User `{uid}`"
+        badge = badges[idx] if idx < 3 else f"`#{idx+1}`"
+        level = 1 + int((xp / 100) ** 0.5)
+        lines.append(f"{badge} **{name}** — **Lvl {level}** (`{xp} XP`)")
+        
+    embed = discord.Embed(
+        title="🏆 HAVEN Garden Leaderboard",
+        description="Top active community members by XP and activity:\n\n" + "\n".join(lines),
+        color=discord.Color.from_rgb(241, 196, 15),
+        timestamp=datetime.datetime.now(datetime.timezone.utc),
+    )
+    embed.set_footer(text="Ivy 🌿 · HAVEN Leaderboard")
+    await interaction.followup.send(embed=embed)
+
+
+class PollView(ui.View):
+    def __init__(self, options: list[str]):
+        super().__init__(timeout=None)
+        self.options = options
+        self.votes = {i: 0 for i in range(len(options))}
+        self.voted_users = set()
+
+        for i, opt in enumerate(options):
+            btn = ui.Button(label=f"{opt[:40]} (0)", style=discord.ButtonStyle.primary, custom_id=f"ivy_poll_opt_{i}_{random.randint(100,999)}")
+            btn.callback = self.make_vote_callback(i)
+            self.add_item(btn)
+
+    def make_vote_callback(self, idx: int):
+        async def callback(interaction: discord.Interaction):
+            if interaction.user.id in self.voted_users:
+                await interaction.response.send_message("❌ You have already voted in this poll!", ephemeral=True)
+                return
+            self.voted_users.add(interaction.user.id)
+            self.votes[idx] += 1
+            
+            for item_idx, item in enumerate(self.children):
+                if isinstance(item, ui.Button):
+                    item.label = f"{self.options[item_idx][:40]} ({self.votes[item_idx]})"
+                    
+            await interaction.response.edit_message(view=self)
+            await interaction.followup.send(f"✅ You voted for **{self.options[idx]}**!", ephemeral=True)
+        return callback
+
+
+@bot.tree.command(name="poll", description="Create an interactive community poll 📊")
+@app_commands.describe(question="Poll question", option1="Option 1", option2="Option 2", option3="Option 3 (optional)", option4="Option 4 (optional)")
+async def cmd_poll(interaction: discord.Interaction, question: str, option1: str, option2: str, option3: str | None = None, option4: str | None = None):
+    opts = [o for o in [option1, option2, option3, option4] if o]
+    view = PollView(opts)
+    
+    embed = discord.Embed(
+        title="📊 Community Poll",
+        description=f"**{question}**\n\n*Cast your vote using the buttons below!*",
+        color=discord.Color.from_rgb(52, 152, 219),
+        timestamp=datetime.datetime.now(datetime.timezone.utc),
+    )
+    embed.set_footer(text=f"Poll created by {interaction.user.display_name} • Ivy 🌿")
+    await interaction.response.send_message(embed=embed, view=view)
+
+
+GARDEN_TOPICS = [
+    "What is one small thing that made you smile today?",
+    "If you could travel anywhere right now without worrying about cost, where would you go?",
+    "What is your absolute favorite comfort meal or drink?",
+    "What is a song that instantly boosts your mood no matter what?",
+    "Do you prefer quiet morning energy or late night cozy vibes?",
+    "What is a hobby or interest you recently got into?",
+    "What is the best piece of advice someone has ever given you?",
+]
+
+
+@bot.tree.command(name="topic", description="Get an inspiring conversation topic for the chat 💡")
+async def cmd_topic(interaction: discord.Interaction):
+    topic = random.choice(GARDEN_TOPICS)
+    embed = discord.Embed(
+        title="💡 Conversation Topic",
+        description=f"**{topic}**\n\n*Feel free to answer in chat or share your thoughts!*",
+        color=discord.Color.from_rgb(46, 204, 113),
+    )
+    embed.set_footer(text="Ivy 🌿 · HAVEN Discussion Starter")
+    await interaction.response.send_message(embed=embed)
+
+
+@bot.tree.command(name="serverinfo", description="View HAVEN community statistics & server info ℹ️")
+async def cmd_serverinfo(interaction: discord.Interaction):
+    guild = interaction.guild
+    now = datetime.datetime.now(datetime.timezone.utc)
+    created_str = f"<t:{int(guild.created_at.timestamp())}:R>"
+    
+    total_members = guild.member_count
+    verified_count = sum(1 for m in guild.members if not m.bot and is_verified(m))
+    text_count = len(guild.text_channels)
+    voice_count = len(guild.voice_channels)
+    
+    embed = discord.Embed(
+        title=f"🌿 {guild.name} — Server Statistics",
+        color=discord.Color.from_rgb(46, 204, 113),
+        timestamp=now,
+    )
+    if guild.icon:
+        embed.set_thumbnail(url=guild.icon.url)
+        
+    embed.add_field(name="👥 Total Members", value=f"**{total_members}**", inline=True)
+    embed.add_field(name="✅ Verified Tribe", value=f"**{verified_count}**", inline=True)
+    embed.add_field(name="🚀 Boost Tier", value=f"Level **{guild.premium_tier}** ({guild.premium_subscription_count} boosts)", inline=True)
+    embed.add_field(name="💬 Text Channels", value=f"**{text_count}**", inline=True)
+    embed.add_field(name="🔊 Voice Rooms", value=f"**{voice_count}**", inline=True)
+    embed.add_field(name="📅 Created", value=created_str, inline=True)
+    
+    embed.set_footer(text="Ivy 🌿 · Community Health Card")
+    await interaction.response.send_message(embed=embed)
+
+
 @bot.tree.command(name="roll", description="Roll a dice 🎲")
 @app_commands.describe(sides="Number of sides (default: 6)")
 async def cmd_roll(interaction: discord.Interaction, sides: int = 6):

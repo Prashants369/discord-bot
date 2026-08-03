@@ -173,3 +173,13 @@ def has_open_application(user_id: int) -> bool:
 def is_banned_record(user_id: int) -> bool:
     app = get_app(user_id)
     return bool(app and app.get("status") == "banned")
+
+
+def increment_field(user_id: int, field: str, amount: int = 1) -> int:
+    """Increment a numeric field and return the new value."""
+    app = get_app(user_id) or {}
+    current = app.get(field, 0)
+    new_val = current + amount
+    upsert_app(user_id, **{field: new_val})
+    return new_val
+

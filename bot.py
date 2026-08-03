@@ -46,6 +46,10 @@ EXCLUSIVE_ROLE_GROUPS = {
     "heaven_status_primary": [
         "Single", "Couple", "Open Relationship / ENM", "Polyamorous", "Monogamous",
     ],
+    "heaven_comfort_level": [
+        "SFW Only / Casual", "Flirty & Playful", "Open Minded / Flexible", "Explicit Friendly",
+    ],
+    "heaven_dm_boundary": ["Open DMs", "Ask Before DMing", "No DMs Allowed"],
 }
 
 VERIFY_AS_CHOICES = [
@@ -390,25 +394,93 @@ async def close_ticket_later(channel: discord.TextChannel, seconds: int, reason:
         pass
 
 
-async def dm_verified_welcome(member: discord.Member, verification_role_name: str):
+async def garden_channel_mentions(guild: discord.Guild) -> dict:
+    """Resolve the three main garden paths for welcome copy."""
+    names = ("general-chat", "introductions", "roles-self-assign", "arrivals-chat", "open-ticket")
+    out = {}
+    for n in names:
+        ch = discord.utils.get(guild.text_channels, name=n)
+        out[n] = ch.mention if ch else f"#{n}"
+    return out
+
+
+async def garden_arrival_ritual(guild: discord.Guild, member: discord.Member, verification_role_name: str):
+    """
+    Garden arrival: guest is *received*, not only unlocked.
+    1) DM (if open)  2) Public wave in #general-chat  3) Soft invite in #introductions
+    Only three next steps — no channel dump.
+    """
+    ch = await garden_channel_mentions(guild)
+    couple_note = ""
+    if "Couple" in verification_role_name:
+        couple_note = (
+            "\n\n💑 **Couples on one account are fully welcome here.** "
+            "Just be clear you’re a *we* when you introduce yourselves."
+        )
+
+    # --- 1) DM (may fail if closed) ---
     try:
         dm_embed = discord.Embed(
-            title="🎉 You are verified in HEAVEN!",
+            title="🌿 Welcome into the garden",
             description=(
-                f"You now have **{verification_role_name}**.\n"
-                "Main channels are unlocked.\n\n"
-                "**Next steps:**\n"
-                "1️⃣ `#roles-self-assign` — set your profile\n"
-                "2️⃣ `#introductions` — say hi\n"
-                "3️⃣ `#general-chat` — start talking\n"
-                "4️⃣ Read each channel’s **How to use this room** guide\n\n"
-                "Private rooms need matching **Verified Female / Male / Couple**."
+                f"Hey {member.display_name} — you’re in as **{verification_role_name}**.\n\n"
+                "HAVEN is a calm, open-minded place to meet like-minded adults. "
+                "**No pressure. No activity scores. Lurk as long as you want.**\n\n"
+                "**Just three gentle next steps (all optional):**\n"
+                f"1️⃣ Sit on the bench → {ch['general-chat']}\n"
+                f"2️⃣ Say hi when ready → {ch['introductions']}\n"
+                f"3️⃣ Optional tags → {ch['roles-self-assign']}\n\n"
+                "We’re glad you’re here. Take your time."
+                f"{couple_note}"
             ),
-            color=discord.Color.green(),
+            color=discord.Color.from_rgb(46, 204, 113),
         )
+        dm_embed.set_footer(text="HAVEN garden · social first · nothing required of you")
         await member.send(embed=dm_embed)
     except discord.Forbidden:
         pass
+    except discord.HTTPException:
+        pass
+
+    # --- 2) Public wave in general-chat (always — DMs often fail) ---
+    general = discord.utils.get(guild.text_channels, name="general-chat")
+    if general:
+        try:
+            wave = discord.Embed(
+                title="🌿 Someone just walked into the garden",
+                description=(
+                    f"Please welcome {member.mention} — verified as **{verification_role_name}**.\n\n"
+                    "If you’re around, say **hi** or drop a 👋 — even one word makes this place feel alive.\n"
+                    f"New friends: the bench is {ch['general-chat']}. "
+                    f"Intros (optional): {ch['introductions']}."
+                ),
+                color=discord.Color.from_rgb(26, 188, 156),
+                timestamp=datetime.datetime.now(datetime.timezone.utc),
+            )
+            wave.set_thumbnail(url=member.display_avatar.url)
+            wave.set_footer(text="HAVEN · wave hello · no pressure")
+            await general.send(content=member.mention, embed=wave)
+        except discord.HTTPException as e:
+            print(f"[WARN] garden public wave failed: {e}", flush=True)
+
+    # --- 3) Soft intro invite (in-server backup if DMs closed) ---
+    intros = discord.utils.get(guild.text_channels, name="introductions")
+    if intros:
+        try:
+            invite = discord.Embed(
+                title="🌱 When you’re ready — optional intro",
+                description=(
+                    f"{member.mention} you’re welcome to share a short intro here anytime "
+                    "(or skip and just chat in general).\n\n"
+                    "Use the **Intro template** button in this channel if you want a simple format.\n"
+                    "Hosts try to reply to every intro — you won’t speak into the void."
+                ),
+                color=discord.Color.from_rgb(155, 89, 182),
+            )
+            invite.set_footer(text="HAVEN garden · intro optional")
+            await intros.send(embed=invite)
+        except discord.HTTPException:
+            pass
 
 
 # ═════════════════════════════════════════════════════════
@@ -457,7 +529,7 @@ async def approve_member_verification(guild, member, verification_role_name, mod
             )
         )
 
-    await dm_verified_welcome(member, verification_role_name)
+    await garden_arrival_ritual(guild, member, verification_role_name)
     await refresh_mod_queue(guild)
     return True, "Success"
 
@@ -1083,11 +1155,6 @@ class TicketButtonView(ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @ui.button(
-        label="👩 Female Verification",
-        style=discord.ButtonStyle.success,
-        custom_id="heaven_opt_female",
-    )
     async def _handle_open_ticket(self, interaction: discord.Interaction, applicant_type: str, modal_factory):
         try:
             guild = interaction.guild
@@ -1404,6 +1471,97 @@ class ComfortRolesView(ui.View):
 
 
 # ═════════════════════════════════════════════════════════
+#  INTRO TEMPLATE (optional — garden bench)
+# ═════════════════════════════════════════════════════════
+class IntroModal(ui.Modal, title="Optional garden intro"):
+    who = ui.TextInput(
+        label="Who are you? (single / couple names)",
+        placeholder="e.g. Alex, or Alex & Sam",
+        max_length=80,
+        required=True,
+    )
+    vibe = ui.TextInput(
+        label="Vibe in a few words",
+        placeholder="e.g. chill, curious, night owl",
+        max_length=100,
+        required=True,
+    )
+    looking = ui.TextInput(
+        label="What kind of company do you enjoy?",
+        placeholder="friends, deep chat, couples hang…",
+        style=discord.TextStyle.paragraph,
+        max_length=300,
+        required=True,
+    )
+    fun = ui.TextInput(
+        label="One easy question for the room (optional)",
+        placeholder="e.g. coffee or tea?",
+        max_length=150,
+        required=False,
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if not is_verified(interaction.user):
+            await interaction.response.send_message(
+                "🌿 Intros unlock after verification — no rush.",
+                ephemeral=True,
+            )
+            return
+        fun_line = f"\n**Question for the room:** {self.fun.value}" if self.fun.value else ""
+        embed = discord.Embed(
+            title=f"🌱 Intro — {interaction.user.display_name}",
+            description=(
+                f"{interaction.user.mention}\n\n"
+                f"**Who:** {self.who.value}\n"
+                f"**Vibe:** {self.vibe.value}\n"
+                f"**Enjoys:** {self.looking.value}"
+                f"{fun_line}\n\n"
+                "_Say hi if you’re around — hosts try to reply to every intro._"
+            ),
+            color=discord.Color.from_rgb(46, 204, 113),
+            timestamp=datetime.datetime.now(datetime.timezone.utc),
+        )
+        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        embed.set_footer(text="HAVEN garden intro · optional · no pressure")
+        await interaction.response.send_message(embed=embed)
+        # Nudge greeters/staff gently
+        greeter = discord.utils.get(interaction.guild.roles, name="Greeter")
+        mod = discord.utils.get(interaction.guild.roles, name="Moderator")
+        ping_bits = []
+        if greeter:
+            ping_bits.append(greeter.mention)
+        elif mod:
+            ping_bits.append(mod.mention)
+        if ping_bits:
+            try:
+                await interaction.followup.send(
+                    f"{' '.join(ping_bits)} — new intro above when you have a moment 👋",
+                    allowed_mentions=discord.AllowedMentions(roles=True),
+                )
+            except discord.HTTPException:
+                pass
+
+
+class IntroTemplateView(ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @ui.button(
+        label="🌱 Optional intro template",
+        style=discord.ButtonStyle.green,
+        custom_id="haven_intro_template",
+    )
+    async def open_intro(self, interaction: discord.Interaction, button: ui.Button):
+        if not is_verified(interaction.user):
+            await interaction.response.send_message(
+                "🌿 Verify first, then introduce yourself anytime — no rush.",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.send_modal(IntroModal())
+
+
+# ═════════════════════════════════════════════════════════
 #  BOT + SLASH COMMANDS
 # ═════════════════════════════════════════════════════════
 class HeavenBot(commands.Bot):
@@ -1411,7 +1569,7 @@ class HeavenBot(commands.Bot):
         intents = discord.Intents.default()
         intents.guilds = True
         intents.guild_messages = True
-        intents.members = False
+        intents.members = True
         intents.message_content = False
         super().__init__(command_prefix="!", intents=intents)
 
@@ -1420,7 +1578,11 @@ class HeavenBot(commands.Bot):
         self.add_view(TicketActionView())
         self.add_view(IdentityRolesView())
         self.add_view(VibesRolesView())
+        self.add_view(ComfortRolesView())
+        self.add_view(IntroTemplateView())
+        self.add_view(WouldYouRatherView())
         self.tree.add_command(BlogGroup())
+        self.tree.add_command(BirthdayGroup())
         # Sync slash commands to this guild only (fast)
         guild = discord.Object(id=GUILD_ID)
         self.tree.copy_global_to(guild=guild)
@@ -1630,6 +1792,28 @@ async def add_xp(member: discord.Member, channel: discord.TextChannel):
         )
         await channel.send(embed=level_embed)
         
+        # Check level milestone celebrations
+        LEVEL_MILESTONES = {
+            5: ("⭐", "becoming a garden regular"),
+            10: ("🌟", "a true garden elder"),
+            15: ("💎", "earning Trusted status — Elite Lounge unlocked!"),
+            20: ("👑", "becoming a garden LEGEND"),
+            25: ("🏆", "reaching beyond legendary status!"),
+        }
+        if new_level in LEVEL_MILESTONES:
+            milestones_sent = app.get("milestones_sent", [])
+            key = f"level_{new_level}"
+            if key not in milestones_sent:
+                emoji, text = LEVEL_MILESTONES[new_level]
+                m_embed = discord.Embed(
+                    title=f"{emoji} Level Milestone!",
+                    description=f"✨ {member.mention} just hit **Level {new_level}**, {text}!",
+                    color=discord.Color.gold(),
+                )
+                await channel.send(embed=m_embed)
+                milestones_sent.append(key)
+                store.upsert_app(member.id, milestones_sent=milestones_sent)
+
         # Level 15 grants Trusted role
         if new_level >= 15:
             role = discord.utils.get(member.guild.roles, name="Trusted")
@@ -1913,7 +2097,730 @@ async def cmd_spotlight(interaction: discord.Interaction, member: discord.Member
 
 
 # ═════════════════════════════════════════════════════════
-#  ON_MESSAGE LISTENER (LINK PROTECTION + XP)
+#  PAGINATED COMMANDS DISCOVERY VIEW
+# ═════════════════════════════════════════════════════════
+class CommandsView(ui.View):
+    def __init__(self, interaction: discord.Interaction):
+        super().__init__(timeout=180)
+        self.interaction = interaction
+        self.current_page = 0
+        
+        self.pages = [
+            (
+                "🌿 Page 1: Getting Started",
+                (
+                    "Welcome to HAVEN! Here is how to get around:\n\n"
+                    "• `/tour` — Interactive tour of the server\n"
+                    "• `/commands` — Open this command directory\n"
+                    "• `/rules` — Quick rules reference\n"
+                    "• `/profile [@user]` — View your or another member's garden card\n"
+                    "• `/level [@user]` — Check XP and level progress bar\n"
+                    "• `/checkin` — Daily check-in (earn bonus XP & build streaks!)"
+                ),
+                discord.Color.from_rgb(46, 204, 113)
+            ),
+            (
+                "💚 Page 2: Social Interactions",
+                (
+                    "Show love and connect with others in the garden:\n\n"
+                    "• `/hug @member` — Give someone a warm hug\n"
+                    "• `/highfive @member` — Give a high five!\n"
+                    "• `/wave @member` — Wave hello\n"
+                    "• `/cheers @member` — Raise a glass 🥂\n"
+                    "• `/compliment @member` — Send a kind compliment\n"
+                    "• `/rep @member` — Give someone a reputation point (+1 rep)\n"
+                    "• `/thankhost @member` — Thank a garden host publicly\n"
+                    "• `/ship @a @b` — Calculate fun compatibility %\n"
+                    "• `/matchcard @a @b` — Compare shared vibes between two people"
+                ),
+                discord.Color.from_rgb(155, 89, 182)
+            ),
+            (
+                "🎲 Page 3: Games & Fun",
+                (
+                    "Enjoy games and interactive fun:\n\n"
+                    "• `/8ball <question>` — Ask the magic 8-ball 🔮\n"
+                    "• `/roll [sides]` — Roll a dice (default: 6 sides)\n"
+                    "• `/coinflip` — Flip a coin 🪙\n"
+                    "• `/wouldyourather` — Play Would You Rather (interactive buttons)\n"
+                    "• `/truthordare` — Get a random Truth question or Dare\n"
+                    "• `/confess <text>` — Post an anonymous confession in #confessions\n"
+                    "• `/vibecheck` — Check how active the garden is right now"
+                ),
+                discord.Color.from_rgb(241, 196, 15)
+            ),
+            (
+                "🎨 Page 4: Profile & Identity",
+                (
+                    "Personalize your HAVEN profile:\n\n"
+                    "• `/profile [@user]` — Rich garden profile card\n"
+                    "• `/mood <text>` — Set your current mood (shown on profile)\n"
+                    "• `/birthday set <MM/DD>` — Set your birthday (MM/DD format)\n"
+                    "• `/birthday list` — View upcoming birthdays in the garden 🎂\n"
+                    "• `/afk [reason]` — Set yourself as AFK (bot notifies callers)\n"
+                    "• `/blog create` — Create your personal blog feed\n"
+                    "• `/blog delete` — Delete your blog feed\n"
+                    "• `/blog title <text>` — Update your blog title"
+                ),
+                discord.Color.from_rgb(230, 126, 34)
+            ),
+            (
+                "🛡️ Page 5: Staff & Moderation Commands",
+                (
+                    "Moderator and staff tools:\n\n"
+                    "• `/verify @member <role>` — Verify member as Female/Male/Couple\n"
+                    "• `/unverify @member` — Remove verification access roles\n"
+                    "• `/trust @member` — Grant Trusted role (Elite Lounge)\n"
+                    "• `/untrust @member` — Remove Trusted role\n"
+                    "• `/vstatus @member` — View full verification record & history\n"
+                    "• `/vpanel` — Post moderator control buttons in ticket\n"
+                    "• `/queue` — Refresh live verification queue\n"
+                    "• `/spotlight @member <bio>` — Spotlight a featured member\n"
+                    "• `/warn @member <reason>` — Issue a formal warning (logged & DMed)\n"
+                    "• `/warnings @member` — View member warning history"
+                ),
+                discord.Color.from_rgb(231, 76, 60)
+            )
+        ]
+
+    def get_embed(self) -> discord.Embed:
+        title, desc, color = self.pages[self.current_page]
+        embed = discord.Embed(
+            title=title,
+            description=desc,
+            color=color
+        )
+        embed.set_footer(text=f"Page {self.current_page + 1} of {len(self.pages)} • HAVEN Command Directory")
+        return embed
+
+    @ui.button(label="◀️ Previous", style=discord.ButtonStyle.grey, custom_id="commands_prev")
+    async def prev_cb(self, interaction: discord.Interaction, button: ui.Button):
+        if interaction.user.id != self.interaction.user.id:
+            await interaction.response.send_message("❌ Use `/commands` to open your own directory!", ephemeral=True)
+            return
+        if self.current_page > 0:
+            self.current_page -= 1
+            await interaction.response.edit_message(embed=self.get_embed())
+        else:
+            await interaction.response.defer()
+
+    @ui.button(label="Next ▶️", style=discord.ButtonStyle.primary, custom_id="commands_next")
+    async def next_cb(self, interaction: discord.Interaction, button: ui.Button):
+        if interaction.user.id != self.interaction.user.id:
+            await interaction.response.send_message("❌ Use `/commands` to open your own directory!", ephemeral=True)
+            return
+        if self.current_page < len(self.pages) - 1:
+            self.current_page += 1
+            await interaction.response.edit_message(embed=self.get_embed())
+        else:
+            await interaction.response.defer()
+
+
+class WouldYouRatherView(ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.votes_a = 0
+        self.votes_b = 0
+        self.voted_users = set()
+
+    @ui.button(label="🅰️ Option A", style=discord.ButtonStyle.primary, custom_id="haven_wyr_a")
+    async def opt_a(self, interaction: discord.Interaction, button: ui.Button):
+        if interaction.user.id in self.voted_users:
+            await interaction.response.send_message("❌ You have already voted on this question!", ephemeral=True)
+            return
+        self.voted_users.add(interaction.user.id)
+        self.votes_a += 1
+        await interaction.response.send_message(f"✅ You voted for **Option A**! (A: {self.votes_a} | B: {self.votes_b})", ephemeral=True)
+
+    @ui.button(label="🅱️ Option B", style=discord.ButtonStyle.green, custom_id="haven_wyr_b")
+    async def opt_b(self, interaction: discord.Interaction, button: ui.Button):
+        if interaction.user.id in self.voted_users:
+            await interaction.response.send_message("❌ You have already voted on this question!", ephemeral=True)
+            return
+        self.voted_users.add(interaction.user.id)
+        self.votes_b += 1
+        await interaction.response.send_message(f"✅ You voted for **Option B**! (A: {self.votes_a} | B: {self.votes_b})", ephemeral=True)
+
+
+TRUTHS_LIST = [
+    "What's the most embarrassing song on your playlist?",
+    "When was the last time you cried and why?",
+    "What is your biggest guilty pleasure?",
+    "If you could trade lives with anyone in this server for one day, who would it be?",
+    "What's the funniest misunderstanding you've ever experienced?",
+    "What is something you've never told anyone online?",
+    "What is your idea of a perfect cozy evening?",
+    "What is your favorite quality about yourself?",
+    "What's a fashion trend you secretly love or hate?",
+    "What is your dream vacation destination?",
+]
+
+DARES_LIST = [
+    "Change your server nickname to something funny chosen by the next person who speaks!",
+    "Post a selfie or photo of your current view in chat!",
+    "Send a voice note singing 5 seconds of your favorite song!",
+    "Give a compliment to 3 different members in chat!",
+    "Use only emojis in your next 3 messages!",
+    "Share the last photo in your phone camera roll (SFW)!",
+    "Tell a joke in chat — if nobody laughs, you owe another dare!",
+    "Write a short 2-line poem about the garden!",
+]
+
+class TruthOrDareView(ui.View):
+    def __init__(self):
+        super().__init__(timeout=120)
+
+    @ui.button(label="🔍 Truth", style=discord.ButtonStyle.primary, custom_id="haven_tod_truth")
+    async def truth_cb(self, interaction: discord.Interaction, button: ui.Button):
+        question = random.choice(TRUTHS_LIST)
+        await interaction.response.send_message(
+            f"🔍 **Truth Question for {interaction.user.mention}:**\n\n*{question}*",
+            ephemeral=False
+        )
+
+    @ui.button(label="🎯 Dare", style=discord.ButtonStyle.danger, custom_id="haven_tod_dare")
+    async def dare_cb(self, interaction: discord.Interaction, button: ui.Button):
+        dare = random.choice(DARES_LIST)
+        await interaction.response.send_message(
+            f"🎯 **Dare for {interaction.user.mention}:**\n\n*{dare}*",
+            ephemeral=False
+        )
+
+
+class BirthdayGroup(app_commands.Group, name="birthday"):
+    @app_commands.command(name="set", description="Set your birthday (MM/DD format)")
+    @app_commands.describe(date="Your birthday as MM/DD (e.g. 08/15)")
+    async def birthday_set(self, interaction: discord.Interaction, date: str):
+        date_str = date.strip()
+        if not re.match(r"^(0[1-9]|1[0-2])/(0[1-9]|[12][0-9]|3[01])$", date_str):
+            await interaction.response.send_message("❌ Invalid format! Please use **MM/DD** (e.g. `08/15`).", ephemeral=True)
+            return
+        store.upsert_app(interaction.user.id, birthday=date_str)
+        await interaction.response.send_message(f"🎂 Birthday saved as **{date_str}**! The garden will remember 🎉", ephemeral=True)
+
+    @app_commands.command(name="list", description="See upcoming garden birthdays 🎂")
+    async def birthday_list(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        data = store._read()
+        bday_list = []
+        for uid_str, app in data.get("applications", {}).items():
+            bday = app.get("birthday")
+            if bday:
+                member = interaction.guild.get_member(int(uid_str))
+                name = member.display_name if member else f"User `{uid_str}`"
+                bday_list.append(f"• **{name}** — `{bday}`")
+        if not bday_list:
+            await interaction.followup.send("🎂 No birthdays registered yet! Use `/birthday set` to add yours.", ephemeral=True)
+            return
+        embed = discord.Embed(
+            title="🎂 Garden Birthdays",
+            description="\n".join(bday_list[:25]),
+            color=discord.Color.from_rgb(241, 196, 15),
+        )
+        embed.set_footer(text="HAVEN Birthdays · /birthday set")
+        await interaction.followup.send(embed=embed)
+
+
+# ═════════════════════════════════════════════════════════
+#  NEW SLASH COMMANDS (DISCOVERY, PROFILE, SOCIAL, GAMES)
+# ═════════════════════════════════════════════════════════
+
+@bot.tree.command(name="commands", description="Open the HAVEN command directory")
+async def cmd_commands(interaction: discord.Interaction):
+    view = CommandsView(interaction)
+    await interaction.response.send_message(embed=view.get_embed(), view=view, ephemeral=True)
+
+
+@bot.tree.command(name="profile", description="See your garden profile card 🌿")
+@app_commands.describe(member="Optional: check someone else's profile")
+async def cmd_profile(interaction: discord.Interaction, member: discord.Member | None = None):
+    target = member or interaction.user
+    app = store.get_app(target.id) or {}
+    
+    level = app.get("level", 0)
+    xp = app.get("xp", 0)
+    needed = get_xp_for_level(level)
+    bar = draw_xp_bar(xp, needed, 12)
+    rep = app.get("reputation", 0)
+    mood = app.get("mood", "Not set")
+    birthday = app.get("birthday", "Not set")
+    streak = app.get("checkin_streak", 0)
+    total_checkins = app.get("total_checkins", 0)
+    verified_as = app.get("verified_as", "Not verified")
+    
+    cosmetic_roles = []
+    skip_roles = {"@everyone", "Verified", "Verified Female", "Verified Male", 
+                   "Verified Couple", "Trusted", "Moderator", "Owner", "Greeter",
+                   "Weekly Featured", "Server Booster"}
+    for role in getattr(target, "roles", []):
+        if role.name not in skip_roles and not role.is_default():
+            cosmetic_roles.append(role.name)
+    vibes = " · ".join(cosmetic_roles[:10]) if cosmetic_roles else "None yet — use #roles-self-assign"
+    
+    joined_ts = int(target.joined_at.timestamp()) if getattr(target, "joined_at", None) else 0
+    
+    embed = discord.Embed(
+        title=f"🌿 {target.display_name}'s Garden Card",
+        color=discord.Color.from_rgb(39, 174, 96),
+    )
+    embed.set_thumbnail(url=target.display_avatar.url)
+    embed.add_field(name="🪪 Verified As", value=verified_as, inline=True)
+    embed.add_field(name="⭐ Level", value=f"Level {level}", inline=True)
+    embed.add_field(name="💚 Reputation", value=f"{rep} rep", inline=True)
+    embed.add_field(name="🔥 XP", value=f"`{bar}` {xp}/{needed}", inline=False)
+    embed.add_field(name="📅 Member Since", value=f"<t:{joined_ts}:R>" if joined_ts else "Unknown", inline=True)
+    embed.add_field(name="🔥 Check-in Streak", value=f"{streak} days ({total_checkins} total)", inline=True)
+    embed.add_field(name="🎭 Mood", value=mood, inline=True)
+    embed.add_field(name="🎂 Birthday", value=birthday, inline=True)
+    embed.add_field(name="🏷️ Vibes", value=vibes, inline=False)
+    embed.set_footer(text="HAVEN garden card · /profile · /mood · /checkin")
+    await interaction.response.send_message(embed=embed)
+
+
+@bot.tree.command(name="rules", description="Quick HAVEN rules reference")
+async def cmd_rules(interaction: discord.Interaction):
+    rules_ch = discord.utils.get(interaction.guild.text_channels, name="rules")
+    embed = discord.Embed(
+        title="📜 HAVEN Garden Rules (Quick Reference)",
+        description=(
+            "1️⃣ **18+ ONLY** — no minors, verified by staff\n"
+            "2️⃣ **Consent & Original Content** — only post what you own\n"
+            "3️⃣ **Zero Tolerance for Minors** — instant ban + report\n"
+            "4️⃣ **No Unsolicited NSFW DMs** — ask first\n"
+            "5️⃣ **What's Here Stays Here** — no screenshots without permission\n"
+            "6️⃣ **Report to Mods** — don't dogpile\n"
+            "7️⃣ **Respect & No Selling** — no hate, no spam\n"
+            "8️⃣ **Roles & Private Rooms** — verified gender roles for exclusive rooms\n"
+            "9️⃣ **Couples Welcome** — clear display name, both 18+\n"
+            "🔟 **Garden Manners** — be kind, lurking OK\n\n"
+            f"Full rules: {rules_ch.mention if rules_ch else '#rules'}"
+        ),
+        color=discord.Color.from_rgb(231, 76, 60),
+    )
+    embed.set_footer(text="HAVEN garden rules · be kind · consent always")
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+@bot.tree.command(name="mood", description="Set your current mood (shown on your /profile card)")
+@app_commands.describe(text="Your mood (e.g. 😴 sleepy but here)")
+async def cmd_mood(interaction: discord.Interaction, text: str):
+    mood_str = text.strip()[:50]
+    store.upsert_app(interaction.user.id, mood=mood_str)
+    await interaction.response.send_message(f"🎭 Mood updated to: **{mood_str}**", ephemeral=True)
+
+
+@bot.tree.command(name="checkin", description="Daily garden check-in — earn bonus XP and build your streak! 🌱")
+async def cmd_checkin(interaction: discord.Interaction):
+    if not is_verified(interaction.user):
+        await interaction.response.send_message("🌿 Verify first!", ephemeral=True)
+        return
+    
+    app = store.get_app(interaction.user.id) or {}
+    today = datetime.date.today().isoformat()
+    last_checkin = app.get("last_checkin_date")
+    streak = app.get("checkin_streak", 0)
+    
+    if last_checkin == today:
+        await interaction.response.send_message("✅ You already checked in today! Come back tomorrow.", ephemeral=True)
+        return
+    
+    yesterday = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+    if last_checkin == yesterday:
+        streak += 1
+    else:
+        streak = 1
+    
+    bonus = 50 + min(streak * 5, 100)
+    current_xp = app.get("xp", 0)
+    total_c = app.get("total_checkins", 0) + 1
+    store.upsert_app(interaction.user.id, 
+        xp=current_xp + bonus,
+        last_checkin_date=today, 
+        checkin_streak=streak,
+        total_checkins=total_c
+    )
+    
+    streak_emoji = "🌱"
+    if streak >= 30: streak_emoji = "🌳"
+    elif streak >= 14: streak_emoji = "🌿"
+    elif streak >= 7: streak_emoji = "☘️"
+    elif streak >= 3: streak_emoji = "🌱"
+    
+    embed = discord.Embed(
+        title=f"{streak_emoji} Daily Check-In!",
+        description=(
+            f"{interaction.user.mention} checked into the garden!\n\n"
+            f"**Streak:** {streak} day{'s' if streak > 1 else ''} {streak_emoji}\n"
+            f"**Bonus XP:** +{bonus} XP\n"
+        ),
+        color=discord.Color.from_rgb(39, 174, 96),
+    )
+    embed.set_thumbnail(url=interaction.user.display_avatar.url)
+    embed.set_footer(text="HAVEN · /checkin daily for bonus XP")
+    await interaction.response.send_message(embed=embed)
+
+
+@bot.tree.command(name="rep", description="Give someone a reputation point 💚")
+@app_commands.describe(member="Who to give rep to")
+async def cmd_rep(interaction: discord.Interaction, member: discord.Member):
+    if member.id == interaction.user.id:
+        await interaction.response.send_message("❌ You can't rep yourself!", ephemeral=True)
+        return
+    if member.bot:
+        await interaction.response.send_message("❌ Bots don't need rep!", ephemeral=True)
+        return
+    
+    app = store.get_app(interaction.user.id) or {}
+    rep_given = app.get("rep_given", {})
+    today = datetime.date.today().isoformat()
+    if rep_given.get(str(member.id)) == today:
+        await interaction.response.send_message(f"⏳ You already gave {member.display_name} rep today!", ephemeral=True)
+        return
+    
+    rep_given[str(member.id)] = today
+    store.upsert_app(interaction.user.id, rep_given=rep_given)
+    
+    new_rep = store.increment_field(member.id, "reputation", 1)
+    
+    embed = discord.Embed(
+        description=f"💚 {interaction.user.mention} gave {member.mention} a reputation point! (Total: **{new_rep}** rep)",
+        color=discord.Color.from_rgb(39, 174, 96),
+    )
+    await interaction.response.send_message(embed=embed)
+
+
+afk_users = {}
+
+@bot.tree.command(name="afk", description="Set yourself as AFK 💤")
+@app_commands.describe(reason="Why you're AFK")
+async def cmd_afk(interaction: discord.Interaction, reason: str = "AFK"):
+    afk_users[interaction.user.id] = {
+        "reason": reason[:100],
+        "since": datetime.datetime.now(datetime.timezone.utc)
+    }
+    embed = discord.Embed(
+        description=f"💤 {interaction.user.mention} is now AFK: *{reason}*",
+        color=discord.Color.light_grey(),
+    )
+    await interaction.response.send_message(embed=embed)
+
+
+@bot.tree.command(name="hug", description="Give someone a warm hug 🤗")
+@app_commands.describe(member="Who to hug")
+async def cmd_hug(interaction: discord.Interaction, member: discord.Member):
+    if member.id == interaction.user.id:
+        await interaction.response.send_message("🤗 You gave yourself a hug!", ephemeral=True)
+        return
+    embed = discord.Embed(
+        description=f"🤗 {interaction.user.mention} gave {member.mention} a warm hug in the garden!",
+        color=discord.Color.from_rgb(255, 182, 193),
+    )
+    await interaction.response.send_message(embed=embed)
+
+
+@bot.tree.command(name="highfive", description="High five someone! 🖐️")
+@app_commands.describe(member="Who to high five")
+async def cmd_highfive(interaction: discord.Interaction, member: discord.Member):
+    embed = discord.Embed(
+        description=f"🖐️ {interaction.user.mention} and {member.mention} just high-fived!",
+        color=discord.Color.from_rgb(255, 215, 0),
+    )
+    await interaction.response.send_message(embed=embed)
+
+
+@bot.tree.command(name="wave", description="Wave at someone! 👋")
+@app_commands.describe(member="Who to wave at")
+async def cmd_wave(interaction: discord.Interaction, member: discord.Member):
+    embed = discord.Embed(
+        description=f"👋 {interaction.user.mention} waved at {member.mention} — wave back!",
+        color=discord.Color.from_rgb(135, 206, 250),
+    )
+    await interaction.response.send_message(embed=embed)
+
+
+@bot.tree.command(name="cheers", description="Raise a glass to someone! 🥂")
+@app_commands.describe(member="Who to cheers")
+async def cmd_cheers(interaction: discord.Interaction, member: discord.Member):
+    embed = discord.Embed(
+        description=f"🥂 {interaction.user.mention} raised a glass to {member.mention} — cheers!",
+        color=discord.Color.from_rgb(218, 165, 32),
+    )
+    await interaction.response.send_message(embed=embed)
+
+
+COMPLIMENTS_LIST = [
+    "make this garden brighter just by being here.",
+    "have an energy that is contagious in the best way.",
+    "are a fantastic conversation partner.",
+    "bring genuine warmth to this community.",
+    "always know how to make people feel welcome.",
+    "have great taste and an even better heart.",
+    "are truly a core part of what makes HAVEN special.",
+]
+
+@bot.tree.command(name="compliment", description="Send someone a kind compliment 💜")
+@app_commands.describe(member="Who to compliment")
+async def cmd_compliment(interaction: discord.Interaction, member: discord.Member):
+    comp = random.choice(COMPLIMENTS_LIST)
+    embed = discord.Embed(
+        description=f"💜 {interaction.user.mention} wants {member.mention} to know: *You {comp}*",
+        color=discord.Color.from_rgb(155, 89, 182),
+    )
+    await interaction.response.send_message(embed=embed)
+
+
+@bot.tree.command(name="thankhost", description="Thank a garden host/greeter for being welcoming 💚")
+@app_commands.describe(member="Host or greeter to thank")
+async def cmd_thankhost(interaction: discord.Interaction, member: discord.Member):
+    roles = {r.name for r in getattr(member, "roles", [])}
+    if not (roles & {"Greeter", "Moderator", "Owner"}):
+        await interaction.response.send_message("❌ You can only use `/thankhost` for designated Greeters and Hosts!", ephemeral=True)
+        return
+    
+    new_thanks = store.increment_field(member.id, "thanks_received", 1)
+    general = discord.utils.get(interaction.guild.text_channels, name="general-chat")
+    target_channel = general or interaction.channel
+    
+    embed = discord.Embed(
+        description=f"💚 {interaction.user.mention} wants to thank host {member.mention} for making them feel welcome in the garden! (Total thanks: **{new_thanks}**)",
+        color=discord.Color.from_rgb(46, 204, 113),
+    )
+    await target_channel.send(embed=embed)
+    await interaction.response.send_message("✅ Your thanks have been delivered!", ephemeral=True)
+
+
+@bot.tree.command(name="ship", description="Calculate compatibility between two members 💘")
+@app_commands.describe(member_a="First person", member_b="Second person")
+async def cmd_ship(interaction: discord.Interaction, member_a: discord.Member, member_b: discord.Member):
+    score = abs(hash(f"{min(member_a.id, member_b.id)}-{max(member_a.id, member_b.id)}")) % 101
+    filled = score // 10
+    meter = "💕" * filled + "░" * (10 - filled)
+    
+    embed = discord.Embed(
+        title=f"💘 Ship Meter: {member_a.display_name} × {member_b.display_name}",
+        description=f"**Compatibility:** {score}%\n`{meter}`",
+        color=discord.Color.from_rgb(255, 105, 180),
+    )
+    await interaction.response.send_message(embed=embed)
+
+
+@bot.tree.command(name="matchcard", description="Compare shared vibes between two members 💘")
+@app_commands.describe(member_a="First person", member_b="Second person")
+async def cmd_matchcard(interaction: discord.Interaction, member_a: discord.Member, member_b: discord.Member):
+    skip = {"@everyone", "Verified", "Verified Female", "Verified Male", 
+            "Verified Couple", "Trusted", "Moderator", "Owner", "Greeter"}
+    roles_a = {r.name for r in getattr(member_a, "roles", []) if r.name not in skip and not r.is_default()}
+    roles_b = {r.name for r in getattr(member_b, "roles", []) if r.name not in skip and not r.is_default()}
+    
+    shared = roles_a & roles_b
+    total = max(len(roles_a | roles_b), 1)
+    pct = int(len(shared) / total * 100)
+    
+    shared_text = "\n".join(f"• {r}" for r in shared) if shared else "No shared vibes selected yet!"
+    
+    embed = discord.Embed(
+        title=f"💘 Match Card — {member_a.display_name} & {member_b.display_name}",
+        description=f"**Shared Vibes ({len(shared)}):**\n{shared_text}\n\n🎯 **Compatibility: {pct}%**",
+        color=discord.Color.from_rgb(255, 105, 180),
+    )
+    embed.set_footer(text="HAVEN · /matchcard")
+    await interaction.response.send_message(embed=embed)
+
+
+RESPONSES_8BALL = [
+    "🟢 Yes, absolutely.", "🟢 The garden says yes.", "🟢 Without a doubt.",
+    "🟢 Count on it.", "🟢 Most likely.",
+    "🟡 Ask again later.", "🟡 The wind isn't sure yet.", "🟡 Hard to say right now.",
+    "🟡 Concentrate and ask again.", "🟡 Better not tell you now.",
+    "🔴 Nope.", "🔴 The garden says no.", "🔴 Don't count on it.",
+    "🔴 My reply is no.", "🔴 Very doubtful.",
+]
+
+@bot.tree.command(name="8ball", description="Ask the Magic 8-Ball a question 🔮")
+@app_commands.describe(question="Your question")
+async def cmd_8ball(interaction: discord.Interaction, question: str):
+    ans = random.choice(RESPONSES_8BALL)
+    embed = discord.Embed(
+        title="🔮 Magic 8-Ball",
+        description=f"**Q:** {question}\n**A:** {ans}",
+        color=discord.Color.purple(),
+    )
+    await interaction.response.send_message(embed=embed)
+
+
+@bot.tree.command(name="roll", description="Roll a dice 🎲")
+@app_commands.describe(sides="Number of sides (default: 6)")
+async def cmd_roll(interaction: discord.Interaction, sides: int = 6):
+    sides = max(2, min(sides, 100))
+    res = random.randint(1, sides)
+    await interaction.response.send_message(f"🎲 {interaction.user.mention} rolled a **{res}** (d{sides})")
+
+
+@bot.tree.command(name="coinflip", description="Flip a coin 🪙")
+async def cmd_coinflip(interaction: discord.Interaction):
+    res = random.choice(["Heads", "Tails"])
+    await interaction.response.send_message(f"🪙 {interaction.user.mention} flipped a coin — it's **{res}**!")
+
+
+WYR_PAIRS = [
+    ("Always know what someone is thinking", "Always know what someone is feeling"),
+    ("Have a rewind button for life", "Have a pause button for life"),
+    ("Live in a cozy cabin in the mountains", "Live in a quiet beach house by the sea"),
+    ("Be able to talk to animals", "Be able to speak every human language"),
+    ("Always be 10 minutes early", "Always be 10 minutes late"),
+    ("Never need sleep again", "Never get tired or stressed again"),
+]
+
+@bot.tree.command(name="wouldyourather", description="Play Would You Rather! 🅰️/🅱️")
+async def cmd_wouldyourather(interaction: discord.Interaction):
+    pair = random.choice(WYR_PAIRS)
+    embed = discord.Embed(
+        title="🤔 Would You Rather?",
+        description=f"**Option A:** {pair[0]}\n**Option B:** {pair[1]}\n\n*Vote below using the buttons!*",
+        color=discord.Color.from_rgb(241, 196, 15),
+    )
+    view = WouldYouRatherView()
+    await interaction.response.send_message(embed=embed, view=view)
+
+
+@bot.tree.command(name="truthordare", description="Get a Truth question or Dare! 🔍🎯")
+async def cmd_truthordare(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="🎯 Truth or Dare",
+        description="Pick **Truth** or **Dare** below to reveal your prompt!",
+        color=discord.Color.from_rgb(155, 89, 182),
+    )
+    view = TruthOrDareView()
+    await interaction.response.send_message(embed=embed, view=view)
+
+
+@bot.tree.command(name="confess", description="Post an anonymous confession in #confessions 🌙")
+@app_commands.describe(text="Your anonymous confession")
+async def cmd_confess(interaction: discord.Interaction, text: str):
+    if not is_verified(interaction.user):
+        await interaction.response.send_message("🌿 Verify first to post confessions.", ephemeral=True)
+        return
+    
+    confessions_ch = discord.utils.get(interaction.guild.text_channels, name="confessions")
+    if not confessions_ch:
+        try:
+            confessions_ch = await interaction.guild.create_text_channel("confessions", topic="Anonymous confessions channel")
+        except Exception:
+            await interaction.response.send_message("❌ #confessions channel could not be found.", ephemeral=True)
+            return
+    
+    embed = discord.Embed(
+        title="🌙 Anonymous Garden Confession",
+        description=f"*{text.strip()[:1800]}*",
+        color=discord.Color.from_rgb(103, 58, 183),
+        timestamp=datetime.datetime.now(datetime.timezone.utc),
+    )
+    embed.set_footer(text="HAVEN · anonymous · no judgment")
+    await confessions_ch.send(embed=embed)
+    await interaction.response.send_message("✅ Your confession has been posted anonymously.", ephemeral=True)
+
+
+@bot.tree.command(name="vibecheck", description="Check how active the garden is right now 🌿")
+async def cmd_vibecheck(interaction: discord.Interaction):
+    await interaction.response.defer()
+    guild = interaction.guild
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cutoff = now - datetime.timedelta(hours=24)
+    
+    msg_count = 0
+    unique_authors = set()
+    channels_active = 0
+    
+    for ch in guild.text_channels:
+        ch_msgs = 0
+        try:
+            async for msg in ch.history(after=cutoff, limit=200):
+                if not msg.author.bot:
+                    msg_count += 1
+                    ch_msgs += 1
+                    unique_authors.add(msg.author.id)
+        except (discord.Forbidden, discord.HTTPException):
+            continue
+        if ch_msgs > 0:
+            channels_active += 1
+    
+    if msg_count > 100:
+        vibe = "🔥 The garden is BUZZING!"
+    elif msg_count > 30:
+        vibe = "🌿 The garden is warm and active."
+    elif msg_count > 10:
+        vibe = "🌱 Quiet and cozy."
+    else:
+        vibe = "🌙 Peaceful — perfect time to start a conversation!"
+    
+    embed = discord.Embed(
+        title="🌿 Garden Vibe Check",
+        description=(
+            f"**{vibe}**\n\n"
+            f"📝 **{msg_count}** messages in last 24h\n"
+            f"👥 **{len(unique_authors)}** unique chatters\n"
+            f"💬 **{channels_active}** active channels"
+        ),
+        color=discord.Color.from_rgb(39, 174, 96),
+    )
+    embed.set_footer(text="HAVEN garden · /vibecheck")
+    await interaction.followup.send(embed=embed)
+
+
+@bot.tree.command(name="warn", description="Staff: Issue a formal warning to a member")
+@app_commands.describe(member="Member to warn", reason="Reason for warning")
+@staff_check()
+async def cmd_warn(interaction: discord.Interaction, member: discord.Member, reason: str):
+    await interaction.response.defer(ephemeral=True)
+    app = store.get_app(member.id) or {}
+    warnings = app.get("warnings", [])
+    warnings.append({
+        "reason": reason[:200],
+        "by": interaction.user.id,
+        "at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    })
+    store.upsert_app(member.id, warnings=warnings)
+    
+    try:
+        await member.send(embed=discord.Embed(
+            title="⚠️ Warning from HAVEN Staff",
+            description=f"**Reason:** {reason}\n\nPlease review our rules. Repeated violations may result in moderation actions.",
+            color=discord.Color.orange(),
+        ))
+    except (discord.Forbidden, discord.HTTPException):
+        pass
+    
+    log_ch = await get_log_channel(interaction.guild)
+    if log_ch:
+        await log_ch.send(embed=discord.Embed(
+            title="⚠️ Member Warned",
+            description=f"{member.mention} (`{member.id}`) was warned by {interaction.user.mention}.\n**Reason:** {reason}\n**Total Warnings:** {len(warnings)}",
+            color=discord.Color.orange(),
+        ))
+    await interaction.followup.send(f"⚠️ Warned {member.mention}. (Total: {len(warnings)} warnings)", ephemeral=True)
+
+
+@bot.tree.command(name="warnings", description="Staff: Check a member's warning history")
+@app_commands.describe(member="Member to check")
+@staff_check()
+async def cmd_warnings(interaction: discord.Interaction, member: discord.Member):
+    app = store.get_app(member.id) or {}
+    warnings = app.get("warnings", [])
+    if not warnings:
+        await interaction.response.send_message(f"✅ {member.mention} has no warnings.", ephemeral=True)
+        return
+    
+    lines = [f"• `{w.get('at', '')[:10]}` — **{w.get('reason')}**" for w in warnings]
+    embed = discord.Embed(
+        title=f"⚠️ Warning History — {member.display_name}",
+        description="\n".join(lines),
+        color=discord.Color.orange(),
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+# ═════════════════════════════════════════════════════════
+#  ON_MESSAGE LISTENER (AFK, WELCOME-BACK, LINK PROTECTION, XP)
 # ═════════════════════════════════════════════════════════
 @bot.event
 async def on_message(message: discord.Message):
@@ -1997,12 +2904,139 @@ async def on_message(message: discord.Message):
 
                         await refresh_mod_queue(message.guild)
 
-    # Award XP
+    # AFK handling: author removing AFK
+    if message.author.id in afk_users:
+        afk_users.pop(message.author.id, None)
+        try:
+            await message.channel.send(
+                f"Welcome back {message.author.mention}! Your AFK state has been removed.",
+                delete_after=5
+            )
+        except Exception:
+            pass
+
+    # AFK handling: author mentioning an AFK user
+    if message.mentions:
+        for mentioned in message.mentions:
+            if mentioned.id in afk_users:
+                info = afk_users[mentioned.id]
+                try:
+                    await message.channel.send(
+                        f"💤 **{mentioned.display_name}** is currently AFK: *{info['reason']}*",
+                        delete_after=8
+                    )
+                except Exception:
+                    pass
+
+    # Award XP & Welcome-Back Tracking
     member = message.author
     if is_verified(member):
         await add_xp(member, message.channel)
+        
+        # Welcome-back detection
+        app = store.get_app(member.id) or {}
+        last_seen = app.get("last_seen")
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        
+        if last_seen:
+            try:
+                last_dt = datetime.datetime.fromisoformat(last_seen)
+                if last_dt.tzinfo is None:
+                    last_dt = last_dt.replace(tzinfo=datetime.timezone.utc)
+                gap_days = (now_utc - last_dt).total_seconds() / 86400.0
+                if gap_days >= 3.0:
+                    today_str = datetime.date.today().isoformat()
+                    wb_key = f"wb_{today_str}"
+                    milestones_sent = app.get("milestones_sent", [])
+                    if wb_key not in milestones_sent:
+                        milestones_sent.append(wb_key)
+                        store.upsert_app(member.id, milestones_sent=milestones_sent[-50:])
+                        general = discord.utils.get(message.guild.text_channels, name="general-chat")
+                        if general:
+                            wb_embed = discord.Embed(
+                                description=f"🌿 {member.mention} is back on the bench — good to see you again!",
+                                color=discord.Color.from_rgb(39, 174, 96),
+                            )
+                            await general.send(embed=wb_embed)
+            except Exception:
+                pass
+        
+        store.upsert_app(member.id, last_seen=now_utc.isoformat())
 
     await bot.process_commands(message)
+
+
+STAR_THRESHOLD = 5
+
+@bot.event
+async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
+    if str(payload.emoji) != "⭐":
+        return
+    if not payload.guild_id:
+        return
+    
+    guild = bot.get_guild(payload.guild_id)
+    if not guild:
+        return
+    channel = guild.get_channel(payload.channel_id)
+    if not channel or not isinstance(channel, discord.TextChannel):
+        return
+    if channel.name == "starboard":
+        return
+    
+    try:
+        message = await channel.fetch_message(payload.message_id)
+    except Exception:
+        return
+    
+    star_reaction = discord.utils.get(message.reactions, emoji="⭐")
+    if not star_reaction:
+        return
+    
+    count = 0
+    try:
+        async for user in star_reaction.users():
+            if user.id != message.author.id:
+                count += 1
+    except Exception:
+        count = star_reaction.count
+    
+    if count < STAR_THRESHOLD:
+        return
+    
+    app = store.get_app(message.author.id) or {}
+    starboarded = app.get("starboarded_messages", [])
+    if message.id in starboarded:
+        return
+    
+    starboard_ch = discord.utils.get(guild.text_channels, name="starboard")
+    if not starboard_ch:
+        try:
+            starboard_ch = await guild.create_text_channel("starboard", topic="⭐ Hall of Fame — Community starred messages")
+        except Exception:
+            return
+    
+    embed = discord.Embed(
+        description=message.content[:2000] if message.content else "",
+        color=discord.Color.gold(),
+        timestamp=message.created_at,
+    )
+    embed.set_author(name=message.author.display_name, icon_url=message.author.display_avatar.url)
+    embed.add_field(name="Source", value=f"[Jump to message]({message.jump_url})", inline=True)
+    embed.add_field(name="⭐ Stars", value=str(count), inline=True)
+    
+    if message.attachments:
+        att = message.attachments[0]
+        if att.content_type and att.content_type.startswith("image/"):
+            embed.set_image(url=att.url)
+    
+    embed.set_footer(text=f"⭐ {count} | #{channel.name}")
+    try:
+        await starboard_ch.send(embed=embed)
+        starboarded.append(message.id)
+        store.upsert_app(message.author.id, starboarded_messages=starboarded[-50:])
+    except Exception as e:
+        print(f"[WARN] Failed to post to starboard: {e}", flush=True)
 
 
 @bot.tree.command(name="queue", description="Staff: refresh / show verification queue")
@@ -2044,39 +3078,113 @@ async def queue_refresh_loop():
             print(f"[WARN] queue refresh: {e}", flush=True)
 
 
-ICEBREAKERS = [
-    "What is your idea of a perfect first date?",
-    "If you could have dinner with anyone alive or dead, who would it be?",
-    "What's your biggest turn-on and biggest turn-off?",
-    "Are you more of a romantic or a realist?",
-    "What is the most adventurous thing you've ever done?",
-    "What's your favorite way to unwind after a long day?",
-    "Do you believe in love at first sight, or love over time?",
-    "What is one topic you could talk about for hours?",
-    "Would you prefer a cozy night in, or an exciting night out?",
-    "What is the best piece of relationship advice you've ever received?",
-    "If you could travel anywhere in the world tomorrow, where would you go?",
-    "What's your favorite love language (touch, words, acts, gifts, time)?",
-    "What is a hobby you've always wanted to try but haven't yet?",
-    "What is your absolute favorite SFW or NSFW vibe?"
+GARDEN_PROMPTS_NEUTRAL = [
+    "Who's around? Drop a 🌱 just to say you're here.",
+    "The bench is open — what's on your mind today?",
+    "What's one nice thing that happened recently?",
+    "Share a song, a picture of your view, or just a vibe.",
+    "If you could teleport anywhere right now, where would you go?",
+    "What hobby or interest could you talk about for hours?",
+    "Comfort food or comfort movie — what's your pick right now?",
+    "What's the kindest interaction you've had online?",
+    "For couples: what's a shared little joy of yours?",
+    "Describe your current mood in one emoji.",
+    "What kind of company do you enjoy most — quiet chat, laughs, or deeper talks?",
+    "Drop a fun fact about yourself that nobody here knows yet.",
+    "What's something you're looking forward to this week?",
+    "What does a perfect cozy evening look like to you?",
 ]
 
-@tasks.loop(hours=24)
-async def icebreaker_loop():
+@tasks.loop(hours=12)
+async def daily_prompt_loop():
+    """Timezone-neutral prompt for a global community (every 12 hours)."""
     guild = bot.get_guild(GUILD_ID)
-    if guild:
-        chan = discord.utils.get(guild.text_channels, name="speed-dating")
-        if not chan:
-            chan = discord.utils.get(guild.text_channels, name="polls-and-questions")
-        if chan:
-            question = random.choice(ICEBREAKERS)
-            embed = discord.Embed(
-                title="💬 Daily Icebreaker!",
-                description=f"**{question}**\n\nReply below and share your thoughts!",
-                color=discord.Color.from_rgb(52, 152, 219)
-            )
-            embed.set_footer(text="HAVEN Daily Icebreakers")
-            await chan.send(embed=embed)
+    if not guild:
+        return
+    chan = discord.utils.get(guild.text_channels, name="general-chat")
+    if not chan:
+        chan = discord.utils.get(guild.text_channels, name="polls-and-questions")
+    if not chan:
+        return
+    question = random.choice(GARDEN_PROMPTS_NEUTRAL)
+    embed = discord.Embed(
+        title="🌿 Garden prompt (optional)",
+        description=(
+            f"**{question}**\n\n"
+            "Reply if you feel like it — or ignore completely. "
+            "No pressure, the bench is always open."
+        ),
+        color=discord.Color.from_rgb(39, 174, 96),
+    )
+    embed.set_footer(text="HAVEN garden · global prompt · lurk-friendly")
+    try:
+        await chan.send(embed=embed)
+    except discord.HTTPException as e:
+        print(f"[WARN] garden prompt failed: {e}", flush=True)
+
+
+@tasks.loop(hours=6)
+async def milestone_check_loop():
+    """Check join-date milestones (7d, 30d, 90d, 365d) and daily birthday celebrations."""
+    guild = bot.get_guild(GUILD_ID)
+    if not guild:
+        return
+    
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    today_mmdd = now_utc.strftime("%m/%d")
+    today_str = datetime.date.today().isoformat()
+    
+    general = discord.utils.get(guild.text_channels, name="general-chat")
+    
+    for member in guild.members:
+        if member.bot or not is_verified(member):
+            continue
+        
+        app = store.get_app(member.id) or {}
+        milestones = app.get("milestones_sent", [])
+        
+        # 1) Birthday check
+        bday = app.get("birthday")
+        if bday and bday == today_mmdd:
+            bday_key = f"bday_{today_str}"
+            if bday_key not in milestones:
+                milestones.append(bday_key)
+                store.upsert_app(member.id, milestones_sent=milestones[-50:])
+                if general:
+                    b_embed = discord.Embed(
+                        title="🎂 Happy Birthday!",
+                        description=f"🎉 Happy Birthday to {member.mention}! The whole garden celebrates you today! 🌿🎁",
+                        color=discord.Color.from_rgb(241, 196, 15),
+                    )
+                    b_embed.set_thumbnail(url=member.display_avatar.url)
+                    try:
+                        await general.send(embed=b_embed)
+                    except Exception:
+                        pass
+        
+        # 2) Join date milestone check
+        if member.joined_at and general:
+            days = (now_utc - member.joined_at).days
+            checks = {
+                7: ("🌿 1 Week Milestone", "has been in the garden for **1 week**. Glad you stayed!"),
+                30: ("🌳 30 Days Milestone", "is a **30-day garden regular**. This place is better with you here!"),
+                90: ("🌲 90 Days Milestone", "has been a garden pillar for **90 days**!"),
+                365: ("🏛️ 1 Year Anniversary", "has been in the garden for **ONE WHOLE YEAR**! 🥳🎉"),
+            }
+            for d, (title_str, text_str) in checks.items():
+                m_key = f"join_{d}d"
+                if days >= d and m_key not in milestones:
+                    milestones.append(m_key)
+                    store.upsert_app(member.id, milestones_sent=milestones[-50:])
+                    m_embed = discord.Embed(
+                        title=title_str,
+                        description=f"✨ {member.mention} {text_str}",
+                        color=discord.Color.from_rgb(46, 204, 113),
+                    )
+                    try:
+                        await general.send(embed=m_embed)
+                    except Exception:
+                        pass
 
 
 _ready_once = False
@@ -2184,6 +3292,40 @@ async def on_ready():
             await post_or_refresh_panel(roles_chan, "HEAVEN roles panel 3", embed3, ComfortRolesView())
             print("[BOT] ✅ Role menus ready", flush=True)
 
+        # Intro template on the garden bench path
+        intros_chan = discord.utils.get(guild.text_channels, name="introductions")
+        if intros_chan:
+            intro_embed = discord.Embed(
+                title="🌱 Introductions — the garden path",
+                description=(
+                    "Share who you are **when you feel like it** — or just lurk. Both are welcome.\n\n"
+                    "• Singles and **couples on one account** — say so clearly.\n"
+                    "• Keep it kind; no pressure to be spicy.\n"
+                    "• **Hosts reply to intros** so nobody speaks into the void.\n\n"
+                    "Tap the button for a simple optional template."
+                ),
+                color=discord.Color.from_rgb(39, 174, 96),
+            )
+            intro_embed.set_footer(text="HAVEN intro panel · optional")
+            await post_or_refresh_panel(
+                intros_chan, "HAVEN intro panel", intro_embed, IntroTemplateView()
+            )
+            print("[BOT] ✅ Intro template ready in #introductions", flush=True)
+
+        # Ensure Greeter role exists (hosts — human warmth, not a power role)
+        if not discord.utils.get(guild.roles, name="Greeter"):
+            try:
+                await guild.create_role(
+                    name="Greeter",
+                    colour=discord.Colour.from_rgb(26, 188, 156),
+                    hoist=False,
+                    mentionable=True,
+                    reason="Garden hosts who welcome new guests",
+                )
+                print("[BOT] ✅ Created Greeter role", flush=True)
+            except discord.HTTPException as e:
+                print(f"[WARN] Greeter role: {e}", flush=True)
+
         # Mod queue + health ping
         await refresh_mod_queue(guild)
         print(f"[BOT] ✅ Queue ready ({store.count_open()} open)", flush=True)
@@ -2208,64 +3350,99 @@ async def on_ready():
 
         if not queue_refresh_loop.is_running():
             queue_refresh_loop.start()
-        if not icebreaker_loop.is_running():
-            icebreaker_loop.start()
+        if not daily_prompt_loop.is_running():
+            daily_prompt_loop.start()
+        if not milestone_check_loop.is_running():
+            milestone_check_loop.start()
 
     except Exception as e:
         print(f"[ERROR] on_ready setup failed: {e}", flush=True)
 
 @bot.event
 async def on_member_join(member: discord.Member):
+    """Gate hospitality — kind first, verify second. Never treat guests like suspects."""
+    if member.bot:
+        return
     guild = member.guild
-    # 1. Send premium welcoming private DM
+    ch = await garden_channel_mentions(guild)
+
+    # Server member count milestone check
+    count = guild.member_count
+    if count in {25, 50, 75, 100, 150, 200, 250, 500, 1000}:
+        ann_chan = discord.utils.get(guild.text_channels, name="announcements")
+        if ann_chan:
+            m_embed = discord.Embed(
+                title="🌱 Garden Milestone Reached!",
+                description=f"🎉 The HAVEN garden just grew to **{count} members**! Every single one of you makes this place warm and alive.",
+                color=discord.Color.gold(),
+            )
+            try:
+                await ann_chan.send(embed=m_embed)
+            except Exception:
+                pass
+
+    # 1) Soft DM (optional; often closed)
     try:
         dm_embed = discord.Embed(
-            title="✨ Welcome to HAVEN! ✨",
+            title="🌿 Welcome to the garden gate",
             description=(
-                f"Hello {member.name}, welcome to the sanctuary!\n\n"
-                "To unlock the SFW & NSFW discussions, dating lounges, and media channels, "
-                "please complete our secure verification application.\n\n"
-                "**How to start:**\n"
-                f"1️⃣ Go to the server channel **#open-ticket**.\n"
-                "2️⃣ Choose your verification type (Female, Male, or Couple).\n"
-                "3️⃣ Fill out the popup application form.\n"
-                "4️⃣ Follow instructions in your private ticket to upload your selfie check.\n\n"
-                "We look forward to seeing you inside!"
+                f"Hey {member.display_name} — glad you found **HAVEN**.\n\n"
+                "This is a calm, open-minded space for adults to meet like-minded people. "
+                "**We want nothing from you** except that you feel welcome.\n\n"
+                "A short verification keeps the garden safe (18+). It only takes a few minutes.\n\n"
+                f"• Start when ready → {ch['open-ticket']}\n"
+                f"• Chat while you wait → {ch['arrivals-chat']}\n\n"
+                "Singles and **couples on one account** are both welcome. "
+                "Take your time — no rush."
             ),
-            color=discord.Color.from_rgb(155, 89, 182)
+            color=discord.Color.from_rgb(155, 89, 182),
         )
         if guild.icon:
             dm_embed.set_thumbnail(url=guild.icon.url)
+        dm_embed.set_footer(text="HAVEN · gate is kind · lurk OK")
         await member.send(embed=dm_embed)
-    except discord.Forbidden:
+    except (discord.Forbidden, discord.HTTPException):
         pass
 
-    # 2. Send public greeting in #arrivals-chat
+    # 2) Human-feeling hello in arrivals (hosts should also reply in person)
     arrivals_chan = discord.utils.get(guild.text_channels, name="arrivals-chat")
-    ticket_chan = discord.utils.get(guild.text_channels, name="open-ticket")
     if arrivals_chan:
         embed = discord.Embed(
-            title="💫 A New Soul Has Arrived",
+            title="🌿 Someone’s at the gate",
             description=(
-                f"Welcome {member.mention} to **HAVEN**!\n\n"
-                f"🎫 Head to {ticket_chan.mention if ticket_chan else '#open-ticket'} to verify and unlock the sanctuary.\n"
-                "We're excited to have you join our community!"
+                f"Hey {member.mention} — welcome.\n\n"
+                f"Pull up a seat in this lounge. Verify anytime in {ch['open-ticket']} "
+                "(we only check so everyone stays safe).\n\n"
+                "**Hosts:** if you’re around, say hi — waiting shouldn’t feel lonely.\n"
+                "Couples sharing one Discord ID are fully welcome 💑"
             ),
             color=discord.Color.from_rgb(46, 204, 113),
-            timestamp=datetime.datetime.now(datetime.timezone.utc)
+            timestamp=datetime.datetime.now(datetime.timezone.utc),
         )
         embed.set_thumbnail(url=member.display_avatar.url)
-        embed.set_footer(text="HAVEN Arrivals Lounge • Welcome")
-        await arrivals_chan.send(content=member.mention, embed=embed)
+        embed.set_footer(text="HAVEN arrivals · no pressure to verify instantly")
+        try:
+            greeter = discord.utils.get(guild.roles, name="Greeter")
+            content = member.mention
+            if greeter:
+                content = f"{member.mention} · {greeter.mention}"
+            await arrivals_chan.send(
+                content=content,
+                embed=embed,
+                allowed_mentions=discord.AllowedMentions(users=True, roles=True),
+            )
+        except discord.HTTPException as e:
+            print(f"[WARN] arrivals greeter failed: {e}", flush=True)
 
 
 @bot.event
 async def on_member_remove(member: discord.Member):
     guild = member.guild
     log_ch = await get_log_channel(guild)
+    app = store.get_app(member.id)
+    status_text = app.get("status") if app else "Unverified / No Record"
+    
     if log_ch:
-        app = store.get_app(member.id)
-        status_text = app.get("status") if app else "Unverified / No Record"
         joined_str = f"<t:{int(member.joined_at.timestamp())}:R>" if member.joined_at else "Unknown"
         embed = discord.Embed(
             title="📤 Member Left Server",
@@ -2284,6 +3461,19 @@ async def on_member_remove(member: discord.Member):
             await log_ch.send(embed=embed)
         except Exception as e:
             print(f"[WARN] Failed to log member leave: {e}", flush=True)
+
+    # Public farewell for verified members only
+    if status_text == "approved":
+        general = discord.utils.get(guild.text_channels, name="general-chat")
+        if general:
+            farewell = discord.Embed(
+                description=f"🍂 {member.display_name} has left the garden. We hope they carry some warmth with them.",
+                color=discord.Color.from_rgb(149, 165, 166),
+            )
+            try:
+                await general.send(embed=farewell)
+            except Exception:
+                pass
 
 
 bot.run(TOKEN)

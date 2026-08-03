@@ -643,55 +643,52 @@ async def on_ready():
     print("[INFO] Upserting about/rules/welcome + channel guides...")
 
     about_embed = discord.Embed(
-        title="🏛️ ── WELCOME TO HEAVEN ──",
+        title="🌿 ── WELCOME TO THE GARDEN ──",
         description=(
-            "A hand-verified, judgment-free community for real adults (18+).\n"
-            "Singles, couples, and everyone in between.\n\n"
+            "**A calm, open-minded garden for adults to meet like-minded people — "
+            "no pressure, no judgment, just good company.**\n\n"
+            "We want nothing from you except that you feel welcome.\n"
+            "Singles and **couples on one account** are both at home here.\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         ),
-        color=discord.Color.from_rgb(241, 196, 15),
+        color=discord.Color.from_rgb(39, 174, 96),
     )
     about_embed.add_field(
-        name="🗺️ SERVER MAP — where do I talk?",
+        name="🗺️ WHERE DO I GO? (keep it simple)",
         value=(
-            f"**Start**\n"
-            f"• Rules → {rules_chan.mention}\n"
+            f"**At the gate (not verified yet)**\n"
+            f"• {rules_chan.mention} · {welcome_chan.mention}\n"
             f"• Verify → {ticket_chan.mention}\n"
-            f"• Wait / ask → {arrivals_chan.mention}\n\n"
-            f"**After verify**\n"
-            f"• Profile tags → {roles_chan.mention}\n"
-            f"• Hang out (SFW) → `#general-chat`\n"
-            f"• Intro yourself → `#introductions`\n"
-            f"• Looking for people → `#looking-for`\n"
-            f"• Flirty SFW → `#flirty-chat`\n"
-            f"• Adult talk → `#nsfw-general`\n"
-            f"• Photos/videos → `#selfies` / media channels\n"
-            f"• Women only → needs **Verified Female**\n"
-            f"• Men only → needs **Verified Male**\n"
-            f"• Couples only → needs **Verified Couple**\n\n"
-            f"Every main channel has a **How to use this room** guide from the bot."
+            f"• Sit & chat while you wait → {arrivals_chan.mention}\n\n"
+            f"**Inside the garden (after verify) — start with these three**\n"
+            f"• Bench → `#general-chat`\n"
+            f"• Optional intro → `#introductions`\n"
+            f"• Optional tags → {roles_chan.mention}\n\n"
+            f"**Side paths (explore when you want)**\n"
+            f"• Looking-for · flirty · NSFW · private rooms\n"
+            f"• Women / Men / Couples rooms need matching **Verified** roles\n\n"
+            f"Lurk as long as you want. No activity scores."
         ),
         inline=False,
     )
     about_embed.add_field(
-        name="✦ WHAT MAKES US DIFFERENT",
+        name="✦ THE GARDEN PROMISE",
         value=(
-            "🔒 Human-reviewed verification\n"
-            "🤝 Consent-first, original content only\n"
-            "👑 Private rooms locked to verified gender roles\n"
-            "💘 Dating + social spaces\n"
-            "💎 Trusted lounge for long-time members"
+            "🌿 Social first — conversation before pressure\n"
+            "🤝 Consent & kindness — no unsolicited NSFW DMs\n"
+            "💑 Couples on one ID welcome — just be clear you’re a *we*\n"
+            "🔒 Light verify keeps the space 18+ and safer\n"
+            " Quiet is allowed — speaking always gets a human reply when hosts are around"
         ),
         inline=False,
     )
     about_embed.add_field(
-        name="✦ HOW TO GET STARTED",
+        name="✦ HOW TO WALK IN",
         value=(
-            f"1️⃣ Read {rules_chan.mention}\n"
-            f"2️⃣ Open a ticket in {ticket_chan.mention}\n"
-            "3️⃣ Fill out the form modal (Email, Age, Gender, Looking for)\n"
-            "4️⃣ Upload a selfie holding paper with **HEAVEN + Date + Name**\n"
-            "5️⃣ Mod approves → Server unlocks!"
+            f"1️⃣ Skim {rules_chan.mention}\n"
+            f"2️⃣ Open {ticket_chan.mention} when ready (no rush)\n"
+            "3️⃣ Short form + selfie check if asked\n"
+            "4️⃣ Hosts welcome you in — then the bench is open"
         ),
         inline=False,
     )
@@ -723,34 +720,53 @@ async def on_ready():
         ),
         inline=False,
     )
+    rules_embed.add_field(
+        name="💑 9 — COUPLES ON ONE ACCOUNT",
+        value=(
+            "Fully welcome. Use a clear display name (e.g. Alex & Sam), "
+            "verify as **Couple**, and both partners must be 18+ and consenting. "
+            "Others may assume DMs are seen by both of you."
+        ),
+        inline=False,
+    )
+    rules_embed.add_field(
+        name="🌿 10 — GARDEN MANNERS",
+        value=(
+            "Be kind. Reply when you can. Lurking is OK. "
+            "Don’t pressure anyone to chat, date, or share. Hosts are gardeners — not police-first."
+        ),
+        inline=False,
+    )
     rules_embed.set_footer(text="HEAVEN rules panel")
     await upsert_bot_embed(rules_chan, "HEAVEN rules panel", rules_embed)
 
     welcome_embed = discord.Embed(
-        title="🔓 ── VERIFICATION GUIDE ──",
+        title="🌿 ── WALKING INTO THE GARDEN ──",
         description=(
-            "Channels stay locked until a **moderator** verifies your application.\n\n"
+            "Verification is only a **soft gate** so the garden stays 18+ and safer.\n"
+            "We are not collecting you — we are protecting the space.\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         ),
         color=discord.Color.from_rgb(46, 204, 113),
     )
     welcome_embed.add_field(
-        name="📋 STEPS",
+        name="📋 GENTLE STEPS",
         value=(
-            f"**1.** {ticket_chan.mention} → **Open Verification Ticket**\n"
-            "**2.** Form: age (18+), gender, looking for, type YES\n"
-            "**3.** Optional/required by mods: selfie + paper (HEAVEN + date + name)\n"
-            "**4.** Mod clicks **Verify Female / Male / Couple**\n"
-            "**5.** Server unlocks → set profile roles → introduce yourself"
+            f"**1.** {ticket_chan.mention} when you’re ready (no rush)\n"
+            "**2.** Short form — age 18+, single or couple, what kind of company you enjoy\n"
+            "**3.** Selfie + paper if a host asks (HAVEN + date + name — no ID card)\n"
+            "**4.** Host approves as Female / Male / Couple\n"
+            "**5.** You get a real welcome — then the bench is open"
         ),
         inline=False,
     )
     welcome_embed.add_field(
-        name="🎭 AFTER VERIFY",
+        name="🌱 AFTER YOU’RE IN (only three things)",
         value=(
-            f"• {roles_chan.mention} for tags (verified only)\n"
-            "• `#introductions` then `#general-chat`\n"
-            "• Read each room’s **How to use** guide"
+            "1️⃣ `#general-chat` — the main bench\n"
+            "2️⃣ `#introductions` — optional; template button available\n"
+            f"3️⃣ {roles_chan.mention} — optional tags\n\n"
+            "Everything else is a side path. Explore when you want."
         ),
         inline=False,
     )
@@ -759,7 +775,7 @@ async def on_ready():
         value=(
             "Real verification is **never** a random DM button from strangers.\n"
             "We never ask for government ID numbers in DMs.\n"
-            "Only trust tickets and staff with the Moderator/Owner role."
+            "Only trust tickets and staff with Moderator / Owner."
         ),
         inline=False,
     )
@@ -767,13 +783,15 @@ async def on_ready():
     await upsert_bot_embed(welcome_chan, "HEAVEN welcome panel", welcome_embed)
 
     arrivals_embed = discord.Embed(
-        title="👋 ── ARRIVALS LOUNGE ──",
+        title="🌿 ── ARRIVALS LOUNGE (the gate) ──",
         description=(
-            "Hang out here while you wait to verify.\n\n"
-            f"🎫 Start here → {ticket_chan.mention}\n"
+            "You’re welcome to sit here while you wait.\n"
+            "**Say hi. Ask questions. Lurk.** Verification can wait until you’re comfortable.\n\n"
+            f"🎫 Verify when ready → {ticket_chan.mention}\n"
             f"📜 Rules → {rules_chan.mention}\n"
             f"🔓 Guide → {welcome_chan.mention}\n\n"
-            "After you’re verified, this lounge hides and the main server opens."
+            "Couples sharing one account: totally fine — just tell us you’re a couple.\n"
+            "After verify, this lounge hides and the main garden opens."
         ),
         color=discord.Color.from_rgb(26, 188, 156),
     )

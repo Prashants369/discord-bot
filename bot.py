@@ -1570,7 +1570,7 @@ class HeavenBot(commands.Bot):
         intents.guilds = True
         intents.guild_messages = True
         intents.members = True
-        intents.message_content = False
+        intents.message_content = True
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
